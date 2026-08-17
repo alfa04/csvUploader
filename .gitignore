@@ -27,7 +27,7 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
-.terraform.lock.hcl
+# .terraform.lock.hcl IS committed — it pins exact provider versions/hashes, do not ignore it
 
 # Environment / secrets
 .env
