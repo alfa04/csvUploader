@@ -1,0 +1,5 @@
+drug_name,target,efficacy
+Aspirin,COX-1,72.5
+Ibuprofen,COX-2,not_a_number
+Paracetamol,COX-3,150
+,COX-4,50
