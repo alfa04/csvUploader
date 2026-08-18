@@ -17,7 +17,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket         = "csvuploader-tfstate-230167091710"
+    bucket         = "csvuploader-tfstate-399855128537"
     key            = "dev/terraform.tfstate"
     region         = "us-east-1"
     dynamodb_table = "csvuploader-tfstate-lock"

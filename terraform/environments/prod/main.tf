@@ -84,6 +84,14 @@ data "aws_iam_policy_document" "process_handler_permissions" {
     actions   = ["s3:GetObject"]
     resources = ["${module.s3.bucket_arn}/raw/*"]
   }
+
+  # Lambda validates this at the time the async-invocation failure destination is configured -
+  # without it, PutFunctionEventInvokeConfig itself fails.
+  statement {
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.process_handler_dlq.arn]
+  }
 }
 
 module "iam_process_handler" {
