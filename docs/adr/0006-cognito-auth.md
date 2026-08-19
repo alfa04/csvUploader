@@ -41,9 +41,11 @@ secret" problem for the customer.
   favor of not building custom per-user throttling in Lambda for a "nice to have."
 - Cognito's built-in email sending handles verification codes at this scale; real production
   volume would need SES instead.
-- The CI deploy role needs `cognito-idp:*` actions on `resources = ["*"]` - Cognito doesn't
-  support narrower resource-level permissions for pool management actions, the same category of
-  AWS limitation `docs/adr/0004-environment-strategy.md` already documents for
-  `logs:DescribeLogGroups` and API Gateway's `/apikeys`/`/usageplans` paths.
+- The CI deploy role needs specific enumerated `cognito-idp:` actions on `resources = ["*"]`
+  (`CreateUserPool`, `DeleteUserPool`, `UpdateUserPool`, `DescribeUserPool`, `TagResource`,
+  `UntagResource`, `CreateUserPoolClient`, `DeleteUserPoolClient`, `UpdateUserPoolClient`,
+  `DescribeUserPoolClient`) - Cognito doesn't support narrower resource-level permissions for
+  pool management actions, the same category of AWS limitation `docs/adr/0004-environment-strategy.md`
+  already documents for `logs:DescribeLogGroups` and API Gateway's `/apikeys`/`/usageplans` paths.
 - No admin/support tooling exists for manually managing customer accounts (e.g. disabling a
   user) - Cognito's own console covers that manually for now.
