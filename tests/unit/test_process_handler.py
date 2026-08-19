@@ -24,7 +24,7 @@ def test_process_handler_decodes_url_encoded_key(mocked_aws, lambda_context):
     # S3 event notifications URL-encode object keys (e.g. spaces become '+'); _process_record
     # must unquote the key *before* deriving the upload_id from it, not after.
     upload_id = "upload with spaces"
-    repository.create_upload(upload_id, "drugs.csv", f"raw/{upload_id}.csv")
+    repository.create_upload(upload_id, "drugs.csv", f"raw/{upload_id}.csv", "user-1")
     content = b"drug_name,target,efficacy\nAspirin,COX-1,72.5\n"
     get_s3_client().put_object(
         Bucket=get_upload_bucket_name(), Key=f"raw/{upload_id}.csv", Body=content
@@ -38,7 +38,7 @@ def test_process_handler_decodes_url_encoded_key(mocked_aws, lambda_context):
 
 def test_process_handler_stores_valid_rows_and_marks_succeeded(mocked_aws, lambda_context):
     upload_id = "upload-1"
-    repository.create_upload(upload_id, "drugs.csv", f"raw/{upload_id}.csv")
+    repository.create_upload(upload_id, "drugs.csv", f"raw/{upload_id}.csv", "user-1")
     content = b"drug_name,target,efficacy\nAspirin,COX-1,72.5\nIbuprofen,COX-2,68.0\n"
     key = _upload_csv(upload_id, content)
 
@@ -54,9 +54,21 @@ def test_process_handler_stores_valid_rows_and_marks_succeeded(mocked_aws, lambd
     assert [r.drug_name for r in records] == ["Aspirin", "Ibuprofen"]
 
 
+def test_process_handler_preserves_uploaded_by(mocked_aws, lambda_context):
+    upload_id = "upload-6"
+    repository.create_upload(upload_id, "drugs.csv", f"raw/{upload_id}.csv", "user-42")
+    content = b"drug_name,target,efficacy\nAspirin,COX-1,72.5\n"
+    key = _upload_csv(upload_id, content)
+
+    handler(_s3_event(get_upload_bucket_name(), key), lambda_context)
+
+    upload = repository.get_upload(upload_id)
+    assert upload.uploaded_by == "user-42"
+
+
 def test_process_handler_partial_ingest_marks_partially_succeeded(mocked_aws, lambda_context):
     upload_id = "upload-2"
-    repository.create_upload(upload_id, "drugs.csv", f"raw/{upload_id}.csv")
+    repository.create_upload(upload_id, "drugs.csv", f"raw/{upload_id}.csv", "user-1")
     content = b"drug_name,target,efficacy\nAspirin,COX-1,72.5\nIbuprofen,COX-2,not_a_number\n"
     key = _upload_csv(upload_id, content)
 
@@ -74,7 +86,7 @@ def test_process_handler_partial_ingest_marks_partially_succeeded(mocked_aws, la
 
 def test_process_handler_structural_failure_marks_failed(mocked_aws, lambda_context):
     upload_id = "upload-3"
-    repository.create_upload(upload_id, "drugs.csv", f"raw/{upload_id}.csv")
+    repository.create_upload(upload_id, "drugs.csv", f"raw/{upload_id}.csv", "user-1")
     content = b"drug_name,efficacy\nAspirin,72.5\n"  # missing the 'target' column
     key = _upload_csv(upload_id, content)
 
@@ -91,7 +103,7 @@ def test_process_handler_structural_failure_marks_failed(mocked_aws, lambda_cont
 
 def test_process_handler_propagates_error_when_object_missing(mocked_aws, lambda_context):
     upload_id = "upload-4"
-    repository.create_upload(upload_id, "drugs.csv", f"raw/{upload_id}.csv")
+    repository.create_upload(upload_id, "drugs.csv", f"raw/{upload_id}.csv", "user-1")
     # Deliberately no put_object call - the S3 object does not exist.
 
     with pytest.raises(Exception):  # noqa: B017 - asserting the handler lets S3/Lambda retry+DLQ handle it

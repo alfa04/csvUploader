@@ -228,6 +228,14 @@ resource "aws_s3_bucket_notification" "raw_uploads" {
   depends_on = [aws_lambda_permission.s3_invoke_process_handler]
 }
 
+# --- Auth ---
+
+module "cognito" {
+  source = "../../modules/cognito"
+
+  name_prefix = local.name_prefix
+}
+
 # --- API Gateway ---
 
 module "api_gateway" {
@@ -242,9 +250,10 @@ module "api_gateway" {
   records_handler_function_name = module.lambda_records_handler.function_name
   records_handler_invoke_arn    = module.lambda_records_handler.invoke_arn
 
+  cognito_user_pool_arn = module.cognito.user_pool_arn
+
   throttle_rate_limit  = var.throttle_rate_limit
   throttle_burst_limit = var.throttle_burst_limit
-  quota_limit          = var.quota_limit
   log_retention_days   = var.log_retention_days
 }
 
@@ -343,6 +352,26 @@ data "aws_iam_policy_document" "github_actions_deploy_permissions" {
       "arn:aws:iam::*:role/csvuploader-github-actions-deploy",
       "arn:aws:iam::*:oidc-provider/token.actions.githubusercontent.com",
     ]
+  }
+
+  statement {
+    sid    = "ManageCognito"
+    effect = "Allow"
+    actions = [
+      "cognito-idp:CreateUserPool",
+      "cognito-idp:DeleteUserPool",
+      "cognito-idp:UpdateUserPool",
+      "cognito-idp:DescribeUserPool",
+      "cognito-idp:GetUserPoolMfaConfig",
+      "cognito-idp:TagResource",
+      "cognito-idp:UntagResource",
+      "cognito-idp:ListTagsForResource",
+      "cognito-idp:CreateUserPoolClient",
+      "cognito-idp:DeleteUserPoolClient",
+      "cognito-idp:UpdateUserPoolClient",
+      "cognito-idp:DescribeUserPoolClient",
+    ]
+    resources = ["*"]
   }
 
   # logs:DescribeLogGroups doesn't support resource-level permissions - AWS requires "*" for it

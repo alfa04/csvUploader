@@ -2,6 +2,7 @@ import json
 import uuid
 
 from shared import repository
+from shared.auth import caller_sub
 from shared.clients import get_s3_client, get_upload_bucket_name
 from shared.constants import MAX_FILE_SIZE_BYTES, PRESIGNED_URL_EXPIRY_SECONDS
 from shared.http import error_response, json_response
@@ -22,7 +23,7 @@ def handler(event, context):
     s3_key = f"raw/{upload_id}.csv"
     bind_upload_id(upload_id)
 
-    repository.create_upload(upload_id, original_filename, s3_key)
+    repository.create_upload(upload_id, original_filename, s3_key, caller_sub(event))
 
     presigned = get_s3_client().generate_presigned_post(
         Bucket=get_upload_bucket_name(),

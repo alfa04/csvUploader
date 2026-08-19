@@ -8,7 +8,7 @@ and DynamoDB, with all infrastructure defined in Terraform.
 
 ```
 Client
-  │ 1. POST /uploads  (x-api-key)
+  │ 1. POST /uploads  (Bearer token)
   ▼
 API Gateway ──► upload_handler Lambda ──► creates "pending" record in DynamoDB(uploads)
   │                                        returns presigned S3 POST (url + fields, 5 min expiry,
@@ -24,8 +24,8 @@ S3 ObjectCreated event ──► process_handler Lambda
                               - on repeated failure → SQS dead-letter queue
 
 Client
-  │ 2. GET /uploads/{id}          (x-api-key) → status_handler Lambda
-  │ 3. GET /uploads/{id}/records  (x-api-key) → records_handler Lambda (paginated)
+  │ 2. GET /uploads/{id}          (Bearer token) → status_handler Lambda
+  │ 3. GET /uploads/{id}/records  (Bearer token) → records_handler Lambda (paginated)
   ▼
 API Gateway
 ```
@@ -39,14 +39,36 @@ environment/CI strategy, and validation policy each have their own ADR.
 
 ## API
 
-All endpoints require an `x-api-key` header. Get a key's value from Terraform after deploying an
-environment:
+All endpoints require an `Authorization: Bearer <token>` header. Customers sign themselves up -
+there's no operator-provisioned secret. Get the pool/client ids for your deployed environment:
 
 ```bash
 cd terraform/environments/dev
-API_KEY=$(AWS_PROFILE=csvuploader terraform output -raw api_key_value)
+CLIENT_ID=$(AWS_PROFILE=csvuploader terraform output -raw cognito_client_id)
 API_URL=$(AWS_PROFILE=csvuploader terraform output -raw api_invoke_url)
+REGION=us-east-1
 ```
+
+**Sign up, confirm, and log in** (requires `jq` and the AWS CLI, called unauthenticated - these
+specific Cognito operations don't need AWS credentials):
+
+```bash
+aws cognito-idp sign-up --region "$REGION" --client-id "$CLIENT_ID" \
+  --username customer@example.com --password 'SomeStrongPassw0rd' \
+  --user-attributes Name=email,Value=customer@example.com
+
+# Check the inbox for customer@example.com for the verification code, then:
+aws cognito-idp confirm-sign-up --region "$REGION" --client-id "$CLIENT_ID" \
+  --username customer@example.com --confirmation-code 123456
+
+AUTH=$(aws cognito-idp initiate-auth --region "$REGION" --client-id "$CLIENT_ID" \
+  --auth-flow USER_PASSWORD_AUTH \
+  --auth-parameters USERNAME=customer@example.com,PASSWORD='SomeStrongPassw0rd')
+API_TOKEN=$(echo "$AUTH" | jq -r .AuthenticationResult.AccessToken)
+```
+
+`$API_TOKEN` is short-lived (~1 hour); re-run `initiate-auth` (or use the returned
+`RefreshToken`) to get a new one.
 
 Full contract: [`docs/openapi.yaml`](docs/openapi.yaml).
 
@@ -54,7 +76,7 @@ Full contract: [`docs/openapi.yaml`](docs/openapi.yaml).
 
 ```bash
 RESPONSE=$(curl -s -X POST "$API_URL/uploads" \
-  -H "x-api-key: $API_KEY" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_TOKEN" -H "Content-Type: application/json" \
   -d '{"filename": "drugs.csv"}')
 UPLOAD_ID=$(echo "$RESPONSE" | jq -r .upload_id)
 echo "$RESPONSE"
@@ -72,7 +94,7 @@ curl -s -X POST "$(echo "$RESPONSE" | jq -r .upload_url)" \
 **Check status** (poll until `status` is no longer `pending`/`processing`):
 
 ```bash
-curl -s "$API_URL/uploads/$UPLOAD_ID" -H "x-api-key: $API_KEY"
+curl -s "$API_URL/uploads/$UPLOAD_ID" -H "Authorization: Bearer $API_TOKEN"
 # {"upload_id": "...", "status": "succeeded", "row_count": 3, "valid_row_count": 3,
 #  "invalid_row_count": 0, "errors": [], ...}
 ```
@@ -80,7 +102,7 @@ curl -s "$API_URL/uploads/$UPLOAD_ID" -H "x-api-key: $API_KEY"
 **Retrieve parsed records:**
 
 ```bash
-curl -s "$API_URL/uploads/$UPLOAD_ID/records" -H "x-api-key: $API_KEY"
+curl -s "$API_URL/uploads/$UPLOAD_ID/records" -H "Authorization: Bearer $API_TOKEN"
 # {"upload_id": "...", "status": "succeeded",
 #  "records": [{"row_number": 1, "drug_name": "Aspirin", "target": "COX-1", "efficacy": 72.5}, ...]}
 ```
@@ -133,6 +155,7 @@ Architecture Decision Records live in [`docs/adr`](docs/adr):
 
 1. [Upload via S3 presigned POST](docs/adr/0001-upload-mechanism.md)
 2. [DynamoDB for storage](docs/adr/0002-database-choice.md)
-3. [API keys over Cognito/IAM](docs/adr/0003-auth-choice.md)
+3. [API keys over Cognito/IAM (superseded)](docs/adr/0003-auth-choice.md)
 4. [Separate state per environment, trunk-based CI/CD](docs/adr/0004-environment-strategy.md)
 5. [Partial ingest with per-row errors](docs/adr/0005-validation-policy.md)
+6. [Cognito authentication](docs/adr/0006-cognito-auth.md)

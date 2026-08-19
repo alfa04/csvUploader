@@ -45,11 +45,6 @@ variable "throttle_burst_limit" {
   default = 20
 }
 
-variable "quota_limit" {
-  type    = number
-  default = 10000
-}
-
 variable "s3_expiration_days" {
   type    = number
   default = 90

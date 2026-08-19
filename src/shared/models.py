@@ -30,6 +30,7 @@ class UploadMetadata:
     upload_id: str
     status: UploadStatus
     original_filename: str
+    uploaded_by: str
     s3_key: str
     created_at: str
     updated_at: str
@@ -43,6 +44,7 @@ class UploadMetadata:
             "upload_id": self.upload_id,
             "status": self.status.value,
             "original_filename": self.original_filename,
+            "uploaded_by": self.uploaded_by,
             "s3_key": self.s3_key,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
@@ -58,6 +60,7 @@ class UploadMetadata:
             upload_id=item["upload_id"],
             status=UploadStatus(item["status"]),
             original_filename=item["original_filename"],
+            uploaded_by=item.get("uploaded_by", ""),
             s3_key=item["s3_key"],
             created_at=item["created_at"],
             updated_at=item["updated_at"],
@@ -73,6 +76,7 @@ class UploadMetadata:
             "upload_id": self.upload_id,
             "status": self.status.value,
             "original_filename": self.original_filename,
+            "uploaded_by": self.uploaded_by,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "row_count": self.row_count,

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [0006](0006-cognito-auth.md)
 
 ## Context
 

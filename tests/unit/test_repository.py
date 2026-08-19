@@ -3,13 +3,15 @@ from shared.models import DataRecord, RowError, UploadStatus
 
 
 def test_create_and_get_upload(mocked_aws):
-    upload = repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv")
+    upload = repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", "user-1")
     assert upload.status == UploadStatus.PENDING
+    assert upload.uploaded_by == "user-1"
 
     fetched = repository.get_upload("upload-1")
     assert fetched is not None
     assert fetched.upload_id == "upload-1"
     assert fetched.original_filename == "drugs.csv"
+    assert fetched.uploaded_by == "user-1"
 
 
 def test_get_upload_missing_returns_none(mocked_aws):
@@ -17,7 +19,7 @@ def test_get_upload_missing_returns_none(mocked_aws):
 
 
 def test_mark_processing_updates_status(mocked_aws):
-    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv")
+    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", "user-1")
     repository.mark_processing("upload-1")
 
     fetched = repository.get_upload("upload-1")
@@ -25,7 +27,7 @@ def test_mark_processing_updates_status(mocked_aws):
 
 
 def test_complete_upload_stores_counts_and_errors(mocked_aws):
-    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv")
+    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", "user-1")
     errors = [RowError(row=2, field="efficacy", message="Value must be numeric.")]
     repository.complete_upload(
         "upload-1",
