@@ -11,12 +11,15 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def create_upload(upload_id: str, original_filename: str, s3_key: str) -> UploadMetadata:
+def create_upload(
+    upload_id: str, original_filename: str, s3_key: str, uploaded_by: str
+) -> UploadMetadata:
     timestamp = _now()
     upload = UploadMetadata(
         upload_id=upload_id,
         status=UploadStatus.PENDING,
         original_filename=original_filename,
+        uploaded_by=uploaded_by,
         s3_key=s3_key,
         created_at=timestamp,
         updated_at=timestamp,

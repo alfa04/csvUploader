@@ -15,7 +15,7 @@ def _api_event(upload_id: str | None, query: dict | None = None) -> dict:
 
 
 def test_records_returns_empty_while_pending(mocked_aws, lambda_context):
-    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv")
+    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", "user-1")
 
     response = handler(_api_event("upload-1"), lambda_context)
 
@@ -27,7 +27,7 @@ def test_records_returns_empty_while_pending(mocked_aws, lambda_context):
 
 
 def test_records_returns_rows_when_succeeded(mocked_aws, lambda_context):
-    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv")
+    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", "user-1")
     repository.put_records(
         [
             DataRecord(
@@ -69,7 +69,7 @@ def test_records_returns_400_when_upload_id_missing(mocked_aws, lambda_context):
 
 
 def test_records_pagination_via_next_token(mocked_aws, lambda_context):
-    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv")
+    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", "user-1")
     records = [
         DataRecord(
             upload_id="upload-1", row_number=i, drug_name=f"Drug{i}", target="T", efficacy=50.0
@@ -100,14 +100,14 @@ def test_records_pagination_via_next_token(mocked_aws, lambda_context):
 
 
 def test_records_rejects_invalid_limit(mocked_aws, lambda_context):
-    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv")
+    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", "user-1")
 
     response = handler(_api_event("upload-1", {"limit": "not-a-number"}), lambda_context)
     assert response["statusCode"] == 400
 
 
 def test_records_rejects_out_of_range_limit(mocked_aws, lambda_context):
-    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv")
+    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", "user-1")
 
     response = handler(_api_event("upload-1", {"limit": "0"}), lambda_context)
     assert response["statusCode"] == 400

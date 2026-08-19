@@ -13,7 +13,7 @@ def _api_event(upload_id: str | None) -> dict:
 
 
 def test_status_returns_upload_metadata(mocked_aws, lambda_context):
-    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv")
+    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", "user-1")
 
     response = handler(_api_event("upload-1"), lambda_context)
 

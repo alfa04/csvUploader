@@ -22,7 +22,8 @@ def handler(event, context):
     s3_key = f"raw/{upload_id}.csv"
     bind_upload_id(upload_id)
 
-    repository.create_upload(upload_id, original_filename, s3_key)
+    # TODO: Extract uploaded_by from Cognito context in event (Task 2)
+    repository.create_upload(upload_id, original_filename, s3_key, "system")
 
     presigned = get_s3_client().generate_presigned_post(
         Bucket=get_upload_bucket_name(),

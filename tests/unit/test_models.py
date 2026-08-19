@@ -8,6 +8,7 @@ def test_upload_metadata_round_trip():
         upload_id="abc-123",
         status=UploadStatus.SUCCEEDED,
         original_filename="drugs.csv",
+        uploaded_by="cognito-sub-1",
         s3_key="raw/abc-123.csv",
         created_at="2026-01-01T00:00:00+00:00",
         updated_at="2026-01-01T00:00:01+00:00",
@@ -25,6 +26,7 @@ def test_upload_metadata_response_dict_excludes_s3_key():
         upload_id="abc-123",
         status=UploadStatus.PENDING,
         original_filename="drugs.csv",
+        uploaded_by="cognito-sub-1",
         s3_key="raw/abc-123.csv",
         created_at="t1",
         updated_at="t1",
@@ -32,6 +34,7 @@ def test_upload_metadata_response_dict_excludes_s3_key():
     response = upload.to_response_dict()
     assert "s3_key" not in response
     assert response["status"] == "pending"
+    assert response["uploaded_by"] == "cognito-sub-1"
 
 
 def test_row_error_round_trip():
