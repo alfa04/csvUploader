@@ -23,14 +23,21 @@ resource "aws_api_gateway_resource" "records" {
   path_part   = "records"
 }
 
+resource "aws_api_gateway_authorizer" "cognito" {
+  name          = "csvuploader-${var.environment}-cognito"
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  type          = "COGNITO_USER_POOLS"
+  provider_arns = [var.cognito_user_pool_arn]
+}
+
 # --- POST /uploads -> upload_handler ---
 
 resource "aws_api_gateway_method" "post_uploads" {
-  rest_api_id      = aws_api_gateway_rest_api.this.id
-  resource_id      = aws_api_gateway_resource.uploads.id
-  http_method      = "POST"
-  authorization    = "NONE"
-  api_key_required = true
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.uploads.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
 }
 
 resource "aws_api_gateway_integration" "post_uploads" {
@@ -53,11 +60,11 @@ resource "aws_lambda_permission" "post_uploads" {
 # --- GET /uploads/{upload_id} -> status_handler ---
 
 resource "aws_api_gateway_method" "get_upload_status" {
-  rest_api_id      = aws_api_gateway_rest_api.this.id
-  resource_id      = aws_api_gateway_resource.upload_id.id
-  http_method      = "GET"
-  authorization    = "NONE"
-  api_key_required = true
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.upload_id.id
+  http_method   = "GET"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
 
   request_parameters = {
     "method.request.path.upload_id" = true
@@ -84,11 +91,11 @@ resource "aws_lambda_permission" "get_upload_status" {
 # --- GET /uploads/{upload_id}/records -> records_handler ---
 
 resource "aws_api_gateway_method" "get_records" {
-  rest_api_id      = aws_api_gateway_rest_api.this.id
-  resource_id      = aws_api_gateway_resource.records.id
-  http_method      = "GET"
-  authorization    = "NONE"
-  api_key_required = true
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.records.id
+  http_method   = "GET"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
 
   request_parameters = {
     "method.request.path.upload_id" = true
@@ -122,6 +129,7 @@ resource "aws_api_gateway_deployment" "this" {
       aws_api_gateway_resource.uploads.id,
       aws_api_gateway_resource.upload_id.id,
       aws_api_gateway_resource.records.id,
+      aws_api_gateway_authorizer.cognito.id,
       aws_api_gateway_method.post_uploads.id,
       aws_api_gateway_method.get_upload_status.id,
       aws_api_gateway_method.get_records.id,
@@ -175,35 +183,4 @@ resource "aws_api_gateway_method_settings" "this" {
     throttling_rate_limit  = var.throttle_rate_limit
     throttling_burst_limit = var.throttle_burst_limit
   }
-}
-
-# --- API key / usage plan (our chosen auth mechanism - see docs/adr) ---
-
-resource "aws_api_gateway_api_key" "this" {
-  name = "csvuploader-${var.environment}-key"
-}
-
-resource "aws_api_gateway_usage_plan" "this" {
-  name = "csvuploader-${var.environment}-usage-plan"
-
-  api_stages {
-    api_id = aws_api_gateway_rest_api.this.id
-    stage  = aws_api_gateway_stage.this.stage_name
-  }
-
-  throttle_settings {
-    rate_limit  = var.throttle_rate_limit
-    burst_limit = var.throttle_burst_limit
-  }
-
-  quota_settings {
-    limit  = var.quota_limit
-    period = var.quota_period
-  }
-}
-
-resource "aws_api_gateway_usage_plan_key" "this" {
-  key_id        = aws_api_gateway_api_key.this.id
-  key_type      = "API_KEY"
-  usage_plan_id = aws_api_gateway_usage_plan.this.id
 }

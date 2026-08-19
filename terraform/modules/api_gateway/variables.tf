@@ -26,27 +26,21 @@ variable "records_handler_invoke_arn" {
   type = string
 }
 
+variable "cognito_user_pool_arn" {
+  description = "ARN of the Cognito User Pool that authenticates callers."
+  type        = string
+}
+
 variable "throttle_rate_limit" {
-  description = "Steady-state requests per second allowed."
+  description = "Steady-state requests per second allowed (blanket stage-level throttle)."
   type        = number
   default     = 10
 }
 
 variable "throttle_burst_limit" {
-  description = "Concurrent request burst allowed."
+  description = "Concurrent request burst allowed (blanket stage-level throttle)."
   type        = number
   default     = 20
-}
-
-variable "quota_limit" {
-  description = "Maximum requests allowed per quota_period."
-  type        = number
-  default     = 10000
-}
-
-variable "quota_period" {
-  type    = string
-  default = "DAY"
 }
 
 variable "log_retention_days" {
