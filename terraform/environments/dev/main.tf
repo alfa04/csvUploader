@@ -337,9 +337,21 @@ data "aws_iam_policy_document" "github_actions_deploy_permissions" {
       "arn:aws:sns:*:*:csvuploader-dev*",
       "arn:aws:cloudwatch:*:*:alarm:csvuploader-dev*",
       "arn:aws:cloudwatch::*:dashboard/csvuploader-dev",
+      # The deploy role manages its own role/policy too (e.g. this very policy document, and
+      # trust-policy updates), not just the app's csvuploader-dev* resources.
       "arn:aws:iam::*:role/csvuploader-dev*",
+      "arn:aws:iam::*:role/csvuploader-github-actions-deploy",
       "arn:aws:iam::*:oidc-provider/token.actions.githubusercontent.com",
     ]
+  }
+
+  # logs:DescribeLogGroups doesn't support resource-level permissions - AWS requires "*" for it
+  # regardless of naming, unlike the other CloudWatch Logs actions above.
+  statement {
+    sid       = "LogsDescribe"
+    effect    = "Allow"
+    actions   = ["logs:DescribeLogGroups"]
+    resources = ["*"]
   }
 
   statement {
@@ -356,12 +368,17 @@ data "aws_iam_policy_document" "github_actions_deploy_permissions" {
   }
 
   # API Gateway's management API isn't scoped by resource-name-prefixable ARNs the way the
-  # other services are - restapis/* covers the whole account's REST APIs.
+  # other services are, and splits resources across several top-level paths (REST APIs, API
+  # keys, and usage plans are each separate from one another, not nested under /restapis).
   statement {
-    sid       = "ManageApiGateway"
-    effect    = "Allow"
-    actions   = ["apigateway:*"]
-    resources = ["arn:aws:apigateway:*::/restapis*"]
+    sid     = "ManageApiGateway"
+    effect  = "Allow"
+    actions = ["apigateway:*"]
+    resources = [
+      "arn:aws:apigateway:*::/restapis*",
+      "arn:aws:apigateway:*::/apikeys*",
+      "arn:aws:apigateway:*::/usageplans*",
+    ]
   }
 }
 
