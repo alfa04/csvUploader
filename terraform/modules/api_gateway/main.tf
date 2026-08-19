@@ -160,6 +160,7 @@ resource "aws_api_gateway_stage" "this" {
     format = jsonencode({
       requestId               = "$context.requestId"
       sourceIp                = "$context.identity.sourceIp"
+      callerSub               = "$context.authorizer.claims.sub"
       requestTime             = "$context.requestTime"
       httpMethod              = "$context.httpMethod"
       resourcePath            = "$context.resourcePath"

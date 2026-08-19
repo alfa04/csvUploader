@@ -44,7 +44,6 @@ there's no operator-provisioned secret. Get the pool/client ids for your deploye
 
 ```bash
 cd terraform/environments/dev
-POOL_ID=$(AWS_PROFILE=csvuploader terraform output -raw cognito_user_pool_id)
 CLIENT_ID=$(AWS_PROFILE=csvuploader terraform output -raw cognito_client_id)
 API_URL=$(AWS_PROFILE=csvuploader terraform output -raw api_invoke_url)
 REGION=us-east-1

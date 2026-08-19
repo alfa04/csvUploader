@@ -233,7 +233,8 @@ resource "aws_s3_bucket_notification" "raw_uploads" {
 module "cognito" {
   source = "../../modules/cognito"
 
-  name_prefix = local.name_prefix
+  name_prefix         = local.name_prefix
+  deletion_protection = "ACTIVE"
 }
 
 # --- API Gateway ---

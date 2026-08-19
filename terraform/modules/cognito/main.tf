@@ -1,7 +1,7 @@
 resource "aws_cognito_user_pool" "this" {
   name = "${var.name_prefix}-users"
 
-  alias_attributes         = ["email"]
+  username_attributes      = ["email"]
   auto_verified_attributes = ["email"]
 
   # Self-service sign-up: customers register themselves, no operator involvement.
@@ -19,7 +19,8 @@ resource "aws_cognito_user_pool" "this" {
 
   # "Optional" isn't meaningfully different from "off" without an enrollment flow, which isn't
   # being built - see docs/adr/0006-cognito-auth.md.
-  mfa_configuration = "OFF"
+  mfa_configuration   = "OFF"
+  deletion_protection = var.deletion_protection
 }
 
 resource "aws_cognito_user_pool_client" "this" {
@@ -29,6 +30,11 @@ resource "aws_cognito_user_pool_client" "this" {
   # No client secret: a customer authenticating directly shouldn't have to manage yet another
   # permanent secret alongside their password.
   generate_secret = false
+
+  # Without this, Cognito's InitiateAuth/ForgotPassword error responses differ depending on
+  # whether the account exists - leaking account existence, which contradicts this project's
+  # own "404 for both doesn't-exist and not-yours" design principle (see docs/adr/0006).
+  prevent_user_existence_errors = "ENABLED"
 
   explicit_auth_flows = [
     "ALLOW_USER_PASSWORD_AUTH",

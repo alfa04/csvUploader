@@ -54,6 +54,18 @@ def test_process_handler_stores_valid_rows_and_marks_succeeded(mocked_aws, lambd
     assert [r.drug_name for r in records] == ["Aspirin", "Ibuprofen"]
 
 
+def test_process_handler_preserves_uploaded_by(mocked_aws, lambda_context):
+    upload_id = "upload-6"
+    repository.create_upload(upload_id, "drugs.csv", f"raw/{upload_id}.csv", "user-42")
+    content = b"drug_name,target,efficacy\nAspirin,COX-1,72.5\n"
+    key = _upload_csv(upload_id, content)
+
+    handler(_s3_event(get_upload_bucket_name(), key), lambda_context)
+
+    upload = repository.get_upload(upload_id)
+    assert upload.uploaded_by == "user-42"
+
+
 def test_process_handler_partial_ingest_marks_partially_succeeded(mocked_aws, lambda_context):
     upload_id = "upload-2"
     repository.create_upload(upload_id, "drugs.csv", f"raw/{upload_id}.csv", "user-1")

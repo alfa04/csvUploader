@@ -60,7 +60,7 @@ class UploadMetadata:
             upload_id=item["upload_id"],
             status=UploadStatus(item["status"]),
             original_filename=item["original_filename"],
-            uploaded_by=item["uploaded_by"],
+            uploaded_by=item.get("uploaded_by", ""),
             s3_key=item["s3_key"],
             created_at=item["created_at"],
             updated_at=item["updated_at"],

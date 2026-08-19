@@ -190,6 +190,9 @@ components:
           enum: [pending, processing, succeeded, partially_succeeded, failed]
         original_filename:
           type: string
+        uploaded_by:
+          type: string
+          description: Cognito sub (subject identifier) of the customer who created this upload.
         created_at:
           type: string
           format: date-time

@@ -4,7 +4,7 @@ output "api_invoke_url" {
 }
 
 output "cognito_user_pool_id" {
-  description = "Pass as the X-Amz-Target ClientMetadata / pool id for Cognito SignUp/InitiateAuth calls."
+  description = "Cognito user pool ID. Not needed for the sign-up/sign-in flow itself (that only needs the client id) - useful for admin operations against the pool via the AWS CLI or console."
   value       = module.cognito.user_pool_id
 }
 
