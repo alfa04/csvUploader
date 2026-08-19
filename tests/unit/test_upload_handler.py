@@ -1,17 +1,20 @@
 import json
 
+from conftest import DEFAULT_SUB, cognito_request_context
+
 from shared import repository
 from shared.models import UploadStatus
 from upload_handler.handler import handler
 
 
-def _api_event(body: dict | None) -> dict:
+def _api_event(body: dict | None, sub: str = DEFAULT_SUB) -> dict:
     return {
         "httpMethod": "POST",
         "path": "/uploads",
         "headers": {"Content-Type": "application/json"},
         "body": json.dumps(body) if body is not None else None,
         "isBase64Encoded": False,
+        "requestContext": cognito_request_context(sub),
     }
 
 
@@ -28,6 +31,7 @@ def test_upload_creates_pending_record_and_presigned_post(mocked_aws, lambda_con
     assert upload is not None
     assert upload.status == UploadStatus.PENDING
     assert upload.original_filename == "drugs.csv"
+    assert upload.uploaded_by == DEFAULT_SUB
 
 
 def test_upload_defaults_filename_when_missing(mocked_aws, lambda_context):

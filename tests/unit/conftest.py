@@ -5,6 +5,11 @@ from moto import mock_aws
 UPLOADS_TABLE = "test-uploads"
 RECORDS_TABLE = "test-records"
 UPLOAD_BUCKET = "test-upload-bucket"
+DEFAULT_SUB = "test-caller-sub"
+
+
+def cognito_request_context(sub: str = DEFAULT_SUB) -> dict:
+    return {"authorizer": {"claims": {"sub": sub}}}
 
 
 class FakeLambdaContext:
