@@ -39,3 +39,6 @@ override.tf.json
 .DS_Store
 .vscode/
 .idea/
+
+# Claude Code (nested worktrees live under here and are not part of this repo's tree)
+.claude/
