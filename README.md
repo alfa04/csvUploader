@@ -4,41 +4,135 @@ A cloud-based analytics service for ingesting, validating, storing, and retrievi
 data (drug name, target, efficacy) submitted as CSV files. Built on AWS Lambda, API Gateway, S3,
 and DynamoDB, with all infrastructure defined in Terraform.
 
-> **Status:** work in progress. This README will be filled in as each milestone lands (see
-> `docs/adr/` for the design decisions behind the architecture).
-
 ## Architecture
 
-_TODO: architecture diagram + description (Milestone 8)._
+```
+Client
+  │ 1. POST /uploads  (x-api-key)
+  ▼
+API Gateway ──► upload_handler Lambda ──► creates "pending" record in DynamoDB(uploads)
+  │                                        returns presigned S3 POST (url + fields, 5 min expiry,
+  │                                        content-length-range 0-10MB, content-type=text/csv)
+  ▼
+Client uploads CSV directly to S3 (raw bucket, key: raw/{upload_id}.csv)
+  │
+  ▼
+S3 ObjectCreated event ──► process_handler Lambda
+                              - downloads & validates CSV (structural + per-row)
+                              - writes valid rows to DynamoDB(records)
+                              - updates DynamoDB(uploads) status + error list
+                              - on repeated failure → SQS dead-letter queue
+
+Client
+  │ 2. GET /uploads/{id}          (x-api-key) → status_handler Lambda
+  │ 3. GET /uploads/{id}/records  (x-api-key) → records_handler Lambda (paginated)
+  ▼
+API Gateway
+```
+
+The upload never touches Lambda directly - the client uploads straight to S3 via a presigned
+POST, which is what lets this scale past API Gateway's payload limits. That also means
+processing is asynchronous: `POST /uploads` returns immediately with an `upload_id`, and the
+client polls `GET /uploads/{upload_id}` for the outcome. See [`docs/adr`](docs/adr) for why each
+piece of this is shaped the way it is - upload mechanism, database choice, auth strategy,
+environment/CI strategy, and validation policy each have their own ADR.
 
 ## API
 
-_TODO: endpoint reference + curl examples (Milestone 8). See `docs/openapi.yaml` once written._
+All endpoints require an `x-api-key` header. Get a key's value from Terraform after deploying an
+environment:
+
+```bash
+cd terraform/environments/dev
+API_KEY=$(AWS_PROFILE=csvuploader terraform output -raw api_key_value)
+API_URL=$(AWS_PROFILE=csvuploader terraform output -raw api_invoke_url)
+```
+
+Full contract: [`docs/openapi.yaml`](docs/openapi.yaml).
+
+**Start an upload** (requires `jq`):
+
+```bash
+RESPONSE=$(curl -s -X POST "$API_URL/uploads" \
+  -H "x-api-key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{"filename": "drugs.csv"}')
+UPLOAD_ID=$(echo "$RESPONSE" | jq -r .upload_id)
+echo "$RESPONSE"
+# {"upload_id": "...", "upload_url": "...", "upload_fields": {...}, "expires_in": 300}
+```
+
+**Upload the file** to the returned presigned POST - the `file` field must come last:
+
+```bash
+curl -s -X POST "$(echo "$RESPONSE" | jq -r .upload_url)" \
+  $(echo "$RESPONSE" | jq -r '.upload_fields | to_entries[] | "-F \(.key)=\(.value)"') \
+  -F "file=@drugs.csv;type=text/csv"
+```
+
+**Check status** (poll until `status` is no longer `pending`/`processing`):
+
+```bash
+curl -s "$API_URL/uploads/$UPLOAD_ID" -H "x-api-key: $API_KEY"
+# {"upload_id": "...", "status": "succeeded", "row_count": 3, "valid_row_count": 3,
+#  "invalid_row_count": 0, "errors": [], ...}
+```
+
+**Retrieve parsed records:**
+
+```bash
+curl -s "$API_URL/uploads/$UPLOAD_ID/records" -H "x-api-key: $API_KEY"
+# {"upload_id": "...", "status": "succeeded",
+#  "records": [{"row_number": 1, "drug_name": "Aspirin", "target": "COX-1", "efficacy": 72.5}, ...]}
+```
+
+### CSV format
+
+Header row must contain exactly `drug_name`, `target`, `efficacy` (case/whitespace-insensitive).
+`drug_name` and `target` are required, non-empty, ≤255 characters. `efficacy` is required and
+must be numeric, 0-100. Rows failing these checks are skipped and reported individually rather
+than failing the whole upload - see
+[`docs/adr/0005-validation-policy.md`](docs/adr/0005-validation-policy.md).
 
 ## Local development
 
-_TODO: dev setup instructions (Milestone 8)._
-
 ```bash
-uv sync          # install dependencies
-uv run pytest    # run the test suite
-uv run ruff check .
+uv sync                # install dependencies
+uv run pytest          # run the test suite (43 tests, moto-mocked AWS)
+uv run ruff check .    # lint
 ```
+
+Handlers live under `src/<name>_handler/`, sharing common code from `src/shared/` (validation,
+models, DynamoDB/S3 clients, logging). Tests live under `tests/unit/`, with fixture CSVs in
+`tests/fixtures/`.
 
 ## Infrastructure
 
 Infrastructure is managed with Terraform under `terraform/`:
 
-- `terraform/bootstrap` — one-time setup of the remote state backend (S3 bucket + DynamoDB lock
-  table). Applied manually, once, before anything else.
-- `terraform/modules` — reusable modules (S3, DynamoDB, Lambda, API Gateway, IAM, monitoring,
+- `terraform/bootstrap` - one-time setup of the remote state backend (S3 bucket + DynamoDB lock
+  table) and the account-wide API Gateway CloudWatch logging role. Applied manually, once, before
+  anything else.
+- `terraform/modules` - reusable modules (S3, DynamoDB, Lambda, API Gateway, IAM, monitoring,
   GitHub OIDC).
-- `terraform/environments/{dev,prod}` — per-environment root configurations, each with its own
+- `terraform/environments/{dev,prod}` - per-environment root configurations, each with its own
   Terraform state.
 
-See `docs/adr/` for why the architecture is shaped this way.
+Before any `terraform plan`/`apply`, stage the Lambda deployment artifacts:
+
+```bash
+./scripts/build_lambda_packages.sh
+```
+
+Dev deploys automatically on merge to `main` via GitHub Actions (OIDC, no long-lived AWS
+credentials). Prod is always applied by hand. See [`docs/deploying.md`](docs/deploying.md) for
+the full CI/CD setup and the manual prod deploy steps.
 
 ## Design decisions
 
-Architecture Decision Records live in [`docs/adr`](docs/adr), covering the upload mechanism,
-database choice, authentication strategy, environment strategy, and validation policy.
+Architecture Decision Records live in [`docs/adr`](docs/adr):
+
+1. [Upload via S3 presigned POST](docs/adr/0001-upload-mechanism.md)
+2. [DynamoDB for storage](docs/adr/0002-database-choice.md)
+3. [API keys over Cognito/IAM](docs/adr/0003-auth-choice.md)
+4. [Separate state per environment, trunk-based CI/CD](docs/adr/0004-environment-strategy.md)
+5. [Partial ingest with per-row errors](docs/adr/0005-validation-policy.md)

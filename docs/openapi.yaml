@@ -1,0 +1,249 @@
+openapi: 3.0.3
+info:
+  title: csvUploader API
+  description: >
+    Upload, validate, store, and retrieve drug discovery data (drug name, target, efficacy)
+    submitted as CSV files. See docs/adr for the design decisions behind this contract.
+  version: "1.0.0"
+servers:
+  - url: "{apiInvokeUrl}"
+    variables:
+      apiInvokeUrl:
+        default: https://example.execute-api.us-east-1.amazonaws.com/dev
+        description: The invoke_url output of the deployed environment (dev or prod).
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /uploads:
+    post:
+      summary: Start a CSV upload
+      description: >
+        Creates a pending upload record and returns a presigned S3 POST for the client to upload
+        the CSV directly to. Processing happens asynchronously once S3 receives the file -
+        poll GET /uploads/{upload_id} for the outcome.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                filename:
+                  type: string
+                  description: Original filename, stored for display only. Defaults to "upload.csv".
+                  example: drugs.csv
+      responses:
+        "201":
+          description: Upload created; presigned S3 POST ready to use.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PresignedUpload"
+        "400":
+          description: Malformed request body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Missing or invalid API key.
+
+  /uploads/{upload_id}:
+    get:
+      summary: Get upload status
+      parameters:
+        - $ref: "#/components/parameters/UploadId"
+      responses:
+        "200":
+          description: Upload status and, once processing has finished, row counts and errors.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadStatus"
+        "404":
+          description: No upload with that id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Missing or invalid API key.
+
+  /uploads/{upload_id}/records:
+    get:
+      summary: Get parsed records for an upload
+      description: >
+        Returns parsed rows once processing has reached a terminal state with data (succeeded or
+        partially_succeeded). While pending/processing, or if the upload failed structurally,
+        returns an empty records array alongside the current status rather than an error.
+      parameters:
+        - $ref: "#/components/parameters/UploadId"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+          description: Page size. Must be between 1 and 200.
+        - name: next_token
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Opaque pagination cursor from a previous response's next_token.
+      responses:
+        "200":
+          description: A page of parsed records for this upload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordsPage"
+        "400":
+          description: Invalid limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No upload with that id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Missing or invalid API key.
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+
+  parameters:
+    UploadId:
+      name: upload_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    PresignedUpload:
+      type: object
+      properties:
+        upload_id:
+          type: string
+          format: uuid
+        upload_url:
+          type: string
+          format: uri
+          description: S3 endpoint to POST the file to.
+        upload_fields:
+          type: object
+          additionalProperties:
+            type: string
+          description: >
+            Form fields to include in the multipart POST alongside the file (key,
+            Content-Type, signature, etc). The "file" field must be the last one in the form.
+        expires_in:
+          type: integer
+          description: Seconds until the presigned POST expires.
+      required: [upload_id, upload_url, upload_fields, expires_in]
+
+    RowError:
+      type: object
+      properties:
+        row:
+          type: integer
+          description: 1-indexed data row number (0 for whole-file structural errors).
+        field:
+          type: string
+          description: Field name the error applies to, or "*" for a whole-row/whole-file problem.
+        message:
+          type: string
+      required: [row, field, message]
+
+    UploadStatus:
+      type: object
+      properties:
+        upload_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, processing, succeeded, partially_succeeded, failed]
+        original_filename:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        row_count:
+          type: integer
+        valid_row_count:
+          type: integer
+        invalid_row_count:
+          type: integer
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/RowError"
+          description: Capped at the first 100 row errors.
+      required:
+        - upload_id
+        - status
+        - original_filename
+        - created_at
+        - updated_at
+        - row_count
+        - valid_row_count
+        - invalid_row_count
+        - errors
+
+    Record:
+      type: object
+      properties:
+        row_number:
+          type: integer
+        drug_name:
+          type: string
+        target:
+          type: string
+        efficacy:
+          type: number
+          minimum: 0
+          maximum: 100
+      required: [row_number, drug_name, target, efficacy]
+
+    RecordsPage:
+      type: object
+      properties:
+        upload_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, processing, succeeded, partially_succeeded, failed]
+        records:
+          type: array
+          items:
+            $ref: "#/components/schemas/Record"
+        next_token:
+          type: string
+          description: Present only when another page is available.
+      required: [upload_id, status, records]
