@@ -1,4 +1,5 @@
 from shared import repository
+from shared.auth import caller_sub
 from shared.constants import MAX_RECORDS_PAGE_SIZE, RECORDS_PAGE_SIZE
 from shared.http import error_response, json_response
 from shared.logging_config import bind_upload_id, logger
@@ -16,7 +17,7 @@ def handler(event, context):
 
     bind_upload_id(upload_id)
     upload = repository.get_upload(upload_id)
-    if upload is None:
+    if upload is None or upload.uploaded_by != caller_sub(event):
         return error_response(404, f"Upload '{upload_id}' not found.")
 
     query_params = event.get("queryStringParameters") or {}

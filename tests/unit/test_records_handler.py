@@ -1,21 +1,24 @@
 import json
 
+from conftest import DEFAULT_SUB, cognito_request_context
+
 from records_handler.handler import handler
 from shared import repository
 from shared.models import DataRecord, UploadStatus
 
 
-def _api_event(upload_id: str | None, query: dict | None = None) -> dict:
+def _api_event(upload_id: str | None, query: dict | None = None, sub: str = DEFAULT_SUB) -> dict:
     return {
         "httpMethod": "GET",
         "path": f"/uploads/{upload_id}/records",
         "pathParameters": {"upload_id": upload_id} if upload_id else None,
         "queryStringParameters": query,
+        "requestContext": cognito_request_context(sub),
     }
 
 
 def test_records_returns_empty_while_pending(mocked_aws, lambda_context):
-    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", "user-1")
+    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", DEFAULT_SUB)
 
     response = handler(_api_event("upload-1"), lambda_context)
 
@@ -27,7 +30,7 @@ def test_records_returns_empty_while_pending(mocked_aws, lambda_context):
 
 
 def test_records_returns_rows_when_succeeded(mocked_aws, lambda_context):
-    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", "user-1")
+    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", DEFAULT_SUB)
     repository.put_records(
         [
             DataRecord(
@@ -69,10 +72,14 @@ def test_records_returns_400_when_upload_id_missing(mocked_aws, lambda_context):
 
 
 def test_records_pagination_via_next_token(mocked_aws, lambda_context):
-    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", "user-1")
+    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", DEFAULT_SUB)
     records = [
         DataRecord(
-            upload_id="upload-1", row_number=i, drug_name=f"Drug{i}", target="T", efficacy=50.0
+            upload_id="upload-1",
+            row_number=i,
+            drug_name=f"Drug{i}",
+            target="T",
+            efficacy=50.0,
         )
         for i in range(1, 4)
     ]
@@ -100,14 +107,30 @@ def test_records_pagination_via_next_token(mocked_aws, lambda_context):
 
 
 def test_records_rejects_invalid_limit(mocked_aws, lambda_context):
-    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", "user-1")
+    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", DEFAULT_SUB)
 
     response = handler(_api_event("upload-1", {"limit": "not-a-number"}), lambda_context)
     assert response["statusCode"] == 400
 
 
 def test_records_rejects_out_of_range_limit(mocked_aws, lambda_context):
-    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", "user-1")
+    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", DEFAULT_SUB)
 
     response = handler(_api_event("upload-1", {"limit": "0"}), lambda_context)
     assert response["statusCode"] == 400
+
+
+def test_records_returns_404_when_caller_does_not_own_upload(mocked_aws, lambda_context):
+    repository.create_upload("upload-1", "drugs.csv", "raw/upload-1.csv", "owner-sub")
+    repository.complete_upload(
+        "upload-1",
+        row_count=0,
+        valid_row_count=0,
+        invalid_row_count=0,
+        row_errors=[],
+        status=UploadStatus.SUCCEEDED,
+    )
+
+    response = handler(_api_event("upload-1", sub="different-sub"), lambda_context)
+
+    assert response["statusCode"] == 404
