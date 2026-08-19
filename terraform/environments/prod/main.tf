@@ -228,6 +228,14 @@ resource "aws_s3_bucket_notification" "raw_uploads" {
   depends_on = [aws_lambda_permission.s3_invoke_process_handler]
 }
 
+# --- Auth ---
+
+module "cognito" {
+  source = "../../modules/cognito"
+
+  name_prefix = local.name_prefix
+}
+
 # --- API Gateway ---
 
 module "api_gateway" {
@@ -242,9 +250,10 @@ module "api_gateway" {
   records_handler_function_name = module.lambda_records_handler.function_name
   records_handler_invoke_arn    = module.lambda_records_handler.invoke_arn
 
+  cognito_user_pool_arn = module.cognito.user_pool_arn
+
   throttle_rate_limit  = var.throttle_rate_limit
   throttle_burst_limit = var.throttle_burst_limit
-  quota_limit          = var.quota_limit
   log_retention_days   = var.log_retention_days
 }
 

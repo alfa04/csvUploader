@@ -3,10 +3,14 @@ output "api_invoke_url" {
   value       = module.api_gateway.invoke_url
 }
 
-output "api_key_value" {
-  description = "Value to send as the x-api-key header. Fetch with: terraform output -raw api_key_value"
-  value       = module.api_gateway.api_key_value
-  sensitive   = true
+output "cognito_user_pool_id" {
+  description = "Pass as the X-Amz-Target ClientMetadata / pool id for Cognito SignUp/InitiateAuth calls."
+  value       = module.cognito.user_pool_id
+}
+
+output "cognito_client_id" {
+  description = "App client id for Cognito SignUp/InitiateAuth calls."
+  value       = module.cognito.client_id
 }
 
 output "dashboard_name" {
