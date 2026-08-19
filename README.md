@@ -8,7 +8,7 @@ and DynamoDB, with all infrastructure defined in Terraform.
 
 ```
 Client
-  │ 1. POST /uploads  (x-api-key)
+  │ 1. POST /uploads  (Bearer token)
   ▼
 API Gateway ──► upload_handler Lambda ──► creates "pending" record in DynamoDB(uploads)
   │                                        returns presigned S3 POST (url + fields, 5 min expiry,
@@ -24,8 +24,8 @@ S3 ObjectCreated event ──► process_handler Lambda
                               - on repeated failure → SQS dead-letter queue
 
 Client
-  │ 2. GET /uploads/{id}          (x-api-key) → status_handler Lambda
-  │ 3. GET /uploads/{id}/records  (x-api-key) → records_handler Lambda (paginated)
+  │ 2. GET /uploads/{id}          (Bearer token) → status_handler Lambda
+  │ 3. GET /uploads/{id}/records  (Bearer token) → records_handler Lambda (paginated)
   ▼
 API Gateway
 ```
