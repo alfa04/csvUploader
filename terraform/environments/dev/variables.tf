@@ -19,6 +19,17 @@ variable "github_branch" {
   default = "main"
 }
 
+# See terraform/modules/github_oidc/variables.tf for why these are needed.
+variable "github_owner_id" {
+  type    = string
+  default = "7761589"
+}
+
+variable "github_repo_id" {
+  type    = string
+  default = "1338629019"
+}
+
 variable "log_retention_days" {
   type    = number
   default = 14

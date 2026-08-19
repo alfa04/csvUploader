@@ -370,5 +370,7 @@ module "github_oidc" {
 
   github_repo             = var.github_repo
   github_branch           = var.github_branch
+  github_owner_id         = var.github_owner_id
+  github_repo_id          = var.github_repo_id
   permissions_policy_json = data.aws_iam_policy_document.github_actions_deploy_permissions.json
 }
