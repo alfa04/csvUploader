@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Lint & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Test
+        run: uv run pytest
+
+  terraform-fmt:
+    name: Terraform fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.8"
+
+      - name: Format check
+        run: terraform fmt -recursive -check -diff terraform/
+
+  terraform-validate:
+    name: Terraform validate
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        working_directory: [bootstrap, environments/dev, environments/prod]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.8"
+
+      # -backend=false: PR checks never get AWS credentials (our OIDC trust policy only
+      # allows the main branch ref, on purpose - see docs/adr), so this only downloads
+      # providers/modules and checks the config, without touching remote state.
+      - name: Init (no backend)
+        working-directory: terraform/${{ matrix.working_directory }}
+        run: terraform init -backend=false -input=false
+
+      - name: Validate
+        working-directory: terraform/${{ matrix.working_directory }}
+        run: terraform validate

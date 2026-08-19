@@ -1,0 +1,62 @@
+name: Deploy Dev
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write # required to request the OIDC token AWS exchanges for credentials
+  contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false # queue, don't cancel - never abandon a run mid-apply
+
+jobs:
+  deploy:
+    name: Test, build, and deploy to dev
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Test
+        run: uv run pytest
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Build Lambda packages
+        run: ./scripts/build_lambda_packages.sh
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.8"
+
+      - name: Terraform init
+        working-directory: terraform/environments/dev
+        run: terraform init -input=false
+
+      - name: Terraform plan
+        working-directory: terraform/environments/dev
+        run: terraform plan -input=false -out=dev.tfplan
+
+      - name: Terraform apply
+        working-directory: terraform/environments/dev
+        run: terraform apply -input=false -auto-approve dev.tfplan
