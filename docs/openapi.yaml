@@ -13,7 +13,7 @@ servers:
         description: The invoke_url output of the deployed environment (dev or prod).
 
 security:
-  - ApiKeyAuth: []
+  - CognitoAuth: []
 
 paths:
   /uploads:
@@ -47,8 +47,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        "403":
-          description: Missing or invalid API key.
+        "401":
+          description: Missing or invalid access token.
 
   /uploads/{upload_id}:
     get:
@@ -68,8 +68,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        "403":
-          description: Missing or invalid API key.
+        "401":
+          description: Missing or invalid access token.
 
   /uploads/{upload_id}/records:
     get:
@@ -114,15 +114,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        "403":
-          description: Missing or invalid API key.
+        "401":
+          description: Missing or invalid access token.
 
 components:
   securitySchemes:
-    ApiKeyAuth:
-      type: apiKey
-      in: header
-      name: x-api-key
+    CognitoAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Access token from Cognito's InitiateAuth (USER_PASSWORD_AUTH flow), obtained after
+        SignUp + ConfirmSignUp. See README.md for the full sign-up/login walkthrough.
 
   parameters:
     UploadId:
