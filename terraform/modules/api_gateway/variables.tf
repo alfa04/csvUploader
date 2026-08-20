@@ -26,6 +26,14 @@ variable "records_handler_invoke_arn" {
   type = string
 }
 
+variable "list_handler_function_name" {
+  type = string
+}
+
+variable "list_handler_invoke_arn" {
+  type = string
+}
+
 variable "cognito_user_pool_arn" {
   description = "ARN of the Cognito User Pool that authenticates callers."
   type        = string

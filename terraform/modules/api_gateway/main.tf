@@ -57,6 +57,33 @@ resource "aws_lambda_permission" "post_uploads" {
   source_arn    = "${aws_api_gateway_rest_api.this.execution_arn}/*/${aws_api_gateway_method.post_uploads.http_method}${aws_api_gateway_resource.uploads.path}"
 }
 
+# --- GET /uploads -> list_handler ---
+
+resource "aws_api_gateway_method" "list_uploads" {
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.uploads.id
+  http_method   = "GET"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "list_uploads" {
+  rest_api_id             = aws_api_gateway_rest_api.this.id
+  resource_id             = aws_api_gateway_resource.uploads.id
+  http_method             = aws_api_gateway_method.list_uploads.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.list_handler_invoke_arn
+}
+
+resource "aws_lambda_permission" "list_uploads" {
+  statement_id  = "AllowAPIGatewayInvokeListHandler"
+  action        = "lambda:InvokeFunction"
+  function_name = var.list_handler_function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.this.execution_arn}/*/${aws_api_gateway_method.list_uploads.http_method}${aws_api_gateway_resource.uploads.path}"
+}
+
 # --- GET /uploads/{upload_id} -> status_handler ---
 
 resource "aws_api_gateway_method" "get_upload_status" {
@@ -131,9 +158,11 @@ resource "aws_api_gateway_deployment" "this" {
       aws_api_gateway_resource.records.id,
       aws_api_gateway_authorizer.cognito.id,
       aws_api_gateway_method.post_uploads.id,
+      aws_api_gateway_method.list_uploads.id,
       aws_api_gateway_method.get_upload_status.id,
       aws_api_gateway_method.get_records.id,
       aws_api_gateway_integration.post_uploads.id,
+      aws_api_gateway_integration.list_uploads.id,
       aws_api_gateway_integration.get_upload_status.id,
       aws_api_gateway_integration.get_records.id,
     ]))
