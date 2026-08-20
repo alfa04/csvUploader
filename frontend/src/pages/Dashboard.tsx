@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { listUploads, type UploadSummary } from "../api";
 import { SummaryStats } from "../components/SummaryStats";
+import { UploadForm } from "../components/UploadForm";
 import { UploadList } from "../components/UploadList";
 
 export function Dashboard({ signOut }: { signOut?: () => void }) {
@@ -30,6 +31,7 @@ export function Dashboard({ signOut }: { signOut?: () => void }) {
           {error} <button onClick={refresh}>Retry</button>
         </p>
       )}
+      <UploadForm onUploadComplete={refresh} />
       <SummaryStats uploads={uploads} />
       <UploadList uploads={uploads} />
     </main>
