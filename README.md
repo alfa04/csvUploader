@@ -131,6 +131,28 @@ Handlers live under `src/<name>_handler/`, sharing common code from `src/shared/
 models, DynamoDB/S3 clients, logging). Tests live under `tests/unit/`, with fixture CSVs in
 `tests/fixtures/`.
 
+## Frontend
+
+A React dashboard (`frontend/`) lets a customer sign up, confirm their email, log in, upload a
+CSV, and see their own upload history with summary stats - the same Cognito pool and API used
+above, with no separate identity system.
+
+Local development:
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+# fill in .env with the real values from `terraform output` in terraform/environments/dev
+# (api_invoke_url, cognito_user_pool_id, cognito_client_id)
+npm run dev
+```
+
+Deployed automatically to dev on merge to `main` (when files under `frontend/` change), via
+GitHub Actions - see `.github/workflows/deploy-frontend-dev.yml`. Hosted on S3 + CloudFront,
+managed by Terraform (`terraform/modules/frontend_hosting`), dev only for now - see
+[ADR 0007](docs/adr/0007-frontend-hosting.md) for why, and for the hosting/auth-library choice.
+
 ## Infrastructure
 
 Infrastructure is managed with Terraform under `terraform/`:
@@ -163,3 +185,4 @@ Architecture Decision Records live in [`docs/adr`](docs/adr):
 4. [Separate state per environment, trunk-based CI/CD](docs/adr/0004-environment-strategy.md)
 5. [Partial ingest with per-row errors](docs/adr/0005-validation-policy.md)
 6. [Cognito authentication](docs/adr/0006-cognito-auth.md)
+7. [Frontend: Amplify auth + S3/CloudFront hosting](docs/adr/0007-frontend-hosting.md)
