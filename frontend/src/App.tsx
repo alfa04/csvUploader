@@ -1,15 +1,11 @@
 import { Authenticator } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
+import { Dashboard } from "./pages/Dashboard";
 
 export default function App() {
   return (
     <Authenticator>
-      {({ signOut, user }) => (
-        <main>
-          <p>Signed in as {user?.signInDetails?.loginId}</p>
-          <button onClick={signOut}>Sign out</button>
-        </main>
-      )}
+      {({ signOut }) => <Dashboard signOut={signOut} />}
     </Authenticator>
   );
 }
