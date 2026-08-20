@@ -309,6 +309,14 @@ module "monitoring" {
   alert_email      = var.alert_email
 }
 
+# --- Frontend hosting (dev only) ---
+
+module "frontend_hosting" {
+  source = "../../modules/frontend_hosting"
+
+  bucket_name = "${local.name_prefix}-frontend-${data.aws_caller_identity.current.account_id}"
+}
+
 # --- CI/CD: GitHub Actions OIDC deploy role (dev only - CI never touches prod) ---
 #
 # The "ManageDevResources" statement below is scoped by our "csvuploader-dev*" naming
@@ -403,6 +411,25 @@ data "aws_iam_policy_document" "github_actions_deploy_permissions" {
       "cognito-idp:DeleteUserPoolClient",
       "cognito-idp:UpdateUserPoolClient",
       "cognito-idp:DescribeUserPoolClient",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "ManageCloudFront"
+    effect = "Allow"
+    actions = [
+      "cloudfront:CreateDistribution",
+      "cloudfront:GetDistribution",
+      "cloudfront:UpdateDistribution",
+      "cloudfront:DeleteDistribution",
+      "cloudfront:TagResource",
+      "cloudfront:CreateOriginAccessControl",
+      "cloudfront:GetOriginAccessControl",
+      "cloudfront:UpdateOriginAccessControl",
+      "cloudfront:DeleteOriginAccessControl",
+      "cloudfront:CreateInvalidation",
+      "cloudfront:GetInvalidation",
     ]
     resources = ["*"]
   }
