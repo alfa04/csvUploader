@@ -1,0 +1,87 @@
+name: Deploy Frontend Dev
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/deploy-frontend-dev.yml"
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write # required to request the OIDC token AWS exchanges for credentials
+  contents: read
+
+concurrency:
+  group: deploy-frontend-dev
+  cancel-in-progress: false # queue, don't cancel - never abandon a run mid-deploy
+
+jobs:
+  deploy:
+    name: Build and deploy frontend to dev
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.8"
+
+      - name: Read dev environment outputs
+        id: tf_outputs
+        working-directory: terraform/environments/dev
+        run: |
+          set -euo pipefail
+          terraform init -input=false
+
+          api_url=$(terraform output -raw api_invoke_url)
+          pool_id=$(terraform output -raw cognito_user_pool_id)
+          client_id=$(terraform output -raw cognito_client_id)
+          bucket=$(terraform output -raw frontend_bucket_name)
+          distribution_id=$(terraform output -raw frontend_cloudfront_distribution_id)
+
+          for name in api_url pool_id client_id bucket distribution_id; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Terraform output for '$name' is empty - aborting rather than shipping a broken build." >&2
+              exit 1
+            fi
+          done
+
+          echo "api_url=$api_url" >> "$GITHUB_OUTPUT"
+          echo "pool_id=$pool_id" >> "$GITHUB_OUTPUT"
+          echo "client_id=$client_id" >> "$GITHUB_OUTPUT"
+          echo "bucket=$bucket" >> "$GITHUB_OUTPUT"
+          echo "distribution_id=$distribution_id" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        working-directory: frontend
+        env:
+          VITE_API_URL: ${{ steps.tf_outputs.outputs.api_url }}
+          VITE_COGNITO_USER_POOL_ID: ${{ steps.tf_outputs.outputs.pool_id }}
+          VITE_COGNITO_CLIENT_ID: ${{ steps.tf_outputs.outputs.client_id }}
+        run: npm run build
+
+      - name: Upload to S3
+        run: aws s3 sync frontend/dist "s3://${{ steps.tf_outputs.outputs.bucket }}" --delete
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.tf_outputs.outputs.distribution_id }}" \
+            --paths "/*"

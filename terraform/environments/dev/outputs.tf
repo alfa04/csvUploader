@@ -21,3 +21,18 @@ output "github_actions_role_arn" {
 output "dashboard_name" {
   value = module.monitoring.dashboard_name
 }
+
+output "frontend_url" {
+  description = "CloudFront URL serving the dashboard frontend."
+  value       = "https://${module.frontend_hosting.cloudfront_domain_name}"
+}
+
+output "frontend_bucket_name" {
+  description = "S3 bucket the frontend's built assets are synced to."
+  value       = module.frontend_hosting.bucket_name
+}
+
+output "frontend_cloudfront_distribution_id" {
+  description = "CloudFront distribution id, needed to invalidate its cache after a deploy."
+  value       = module.frontend_hosting.cloudfront_distribution_id
+}

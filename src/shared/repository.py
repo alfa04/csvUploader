@@ -98,6 +98,26 @@ def query_records(
     return items, (_encode_token(last_key) if last_key else None)
 
 
+def query_uploads_by_customer(
+    uploaded_by: str, limit: int, next_token: str | None
+) -> tuple[list[UploadMetadata], str | None]:
+    table = get_uploads_table()
+    kwargs = {
+        "IndexName": "uploaded_by-created_at-index",
+        "KeyConditionExpression": "uploaded_by = :uploaded_by",
+        "ExpressionAttributeValues": {":uploaded_by": uploaded_by},
+        "Limit": limit,
+        "ScanIndexForward": False,  # newest created_at first
+    }
+    if next_token:
+        kwargs["ExclusiveStartKey"] = _decode_uploads_token(next_token)
+
+    response = table.query(**kwargs)
+    items = [UploadMetadata.from_item(item) for item in response.get("Items", [])]
+    last_key = response.get("LastEvaluatedKey")
+    return items, (_encode_token(last_key) if last_key else None)
+
+
 def _encode_token(key: dict) -> str:
     return base64.urlsafe_b64encode(json.dumps(key, default=str).encode()).decode()
 
@@ -107,3 +127,7 @@ def _decode_token(token: str) -> dict:
     # row_number round-trips through JSON as a string (via _encode_token's default=str);
     # DynamoDB's Number key type requires it back as a real number for ExclusiveStartKey.
     return {"upload_id": raw["upload_id"], "row_number": int(raw["row_number"])}
+
+
+def _decode_uploads_token(token: str) -> dict:
+    return json.loads(base64.urlsafe_b64decode(token.encode()).decode())

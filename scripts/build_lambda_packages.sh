@@ -10,7 +10,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$REPO_ROOT/build"
-FUNCTIONS=(upload_handler process_handler status_handler records_handler)
+FUNCTIONS=(upload_handler process_handler status_handler records_handler list_handler)
 
 echo "==> Cleaning previous build output"
 rm -rf "$BUILD_DIR"

@@ -26,6 +26,7 @@ S3 ObjectCreated event ──► process_handler Lambda
 Client
   │ 2. GET /uploads/{id}          (Bearer token) → status_handler Lambda
   │ 3. GET /uploads/{id}/records  (Bearer token) → records_handler Lambda (paginated)
+  │ 4. GET /uploads               (Bearer token) → list_handler Lambda (paginated)
   ▼
 API Gateway
 ```
@@ -111,6 +112,15 @@ curl -s "$API_URL/uploads/$UPLOAD_ID/records" -H "Authorization: Bearer $API_TOK
 #  "records": [{"row_number": 1, "drug_name": "Aspirin", "target": "COX-1", "efficacy": 72.5}, ...]}
 ```
 
+**List your uploads** (newest first, paginated):
+
+```bash
+curl -s "$API_URL/uploads" -H "Authorization: Bearer $API_TOKEN"
+# {"uploads": [{"upload_id": "...", "status": "succeeded", "original_filename": "drugs.csv",
+#  "row_count": 3, "valid_row_count": 3, "invalid_row_count": 0, ...}, ...],
+#  "next_token": "..."}
+```
+
 ### CSV format
 
 Header row must contain exactly `drug_name`, `target`, `efficacy` (case/whitespace-insensitive).
@@ -123,13 +133,36 @@ than failing the whole upload - see
 
 ```bash
 uv sync                # install dependencies
-uv run pytest          # run the test suite (43 tests, moto-mocked AWS)
+uv run pytest          # run the test suite (52 tests, moto-mocked AWS)
 uv run ruff check .    # lint
 ```
 
 Handlers live under `src/<name>_handler/`, sharing common code from `src/shared/` (validation,
 models, DynamoDB/S3 clients, logging). Tests live under `tests/unit/`, with fixture CSVs in
 `tests/fixtures/`.
+
+## Frontend
+
+A React dashboard (`frontend/`) lets a customer sign up, confirm their email, log in, upload a
+CSV, and see their own upload history with summary stats - the same Cognito pool and API used
+above, with no separate identity system.
+
+Local development:
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+# fill in .env with the real values from `terraform output` in terraform/environments/dev
+# (api_invoke_url, cognito_user_pool_id, cognito_client_id)
+npm run dev
+```
+
+Deployed automatically to dev on merge to `main` (when files under `frontend/` change), via
+GitHub Actions - see `.github/workflows/deploy-frontend-dev.yml`. Hosted on S3 + CloudFront,
+managed by Terraform (`terraform/modules/frontend_hosting`), dev only for now - see
+[ADR 0007](docs/adr/0007-frontend-hosting.md) for why, and for the hosting/auth-library choice.
+Find the deployed URL with `terraform output -raw frontend_url` in `terraform/environments/dev`.
 
 ## Infrastructure
 
@@ -163,3 +196,4 @@ Architecture Decision Records live in [`docs/adr`](docs/adr):
 4. [Separate state per environment, trunk-based CI/CD](docs/adr/0004-environment-strategy.md)
 5. [Partial ingest with per-row errors](docs/adr/0005-validation-policy.md)
 6. [Cognito authentication](docs/adr/0006-cognito-auth.md)
+7. [Frontend: Amplify auth + S3/CloudFront hosting](docs/adr/0007-frontend-hosting.md)

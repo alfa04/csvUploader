@@ -32,6 +32,8 @@ override.tf.json
 # Environment / secrets
 .env
 .env.*
+# frontend/.env.example IS committed — placeholder values only, documents required VITE_* vars
+!frontend/.env.example
 *.pem
 *.key
 

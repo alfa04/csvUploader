@@ -82,3 +82,34 @@ def test_query_records_pagination(mocked_aws):
     page3, token3 = repository.query_records("upload-1", limit=2, next_token=token2)
     assert [r.row_number for r in page3] == [5]
     assert token3 is None
+
+
+def test_query_uploads_by_customer_returns_newest_first(mocked_aws):
+    repository.create_upload("upload-1", "a.csv", "raw/upload-1.csv", "customer-1")
+    repository.create_upload("upload-2", "b.csv", "raw/upload-2.csv", "customer-1")
+    repository.create_upload("upload-3", "c.csv", "raw/upload-3.csv", "other-customer")
+
+    uploads, next_token = repository.query_uploads_by_customer(
+        "customer-1", limit=10, next_token=None
+    )
+
+    assert [u.upload_id for u in uploads] == ["upload-2", "upload-1"]
+    assert next_token is None
+
+
+def test_query_uploads_by_customer_paginates(mocked_aws):
+    for i in range(5):
+        repository.create_upload(f"upload-{i}", "a.csv", f"raw/upload-{i}.csv", "customer-1")
+
+    page1, token1 = repository.query_uploads_by_customer("customer-1", limit=3, next_token=None)
+    assert len(page1) == 3
+    assert token1 is not None
+
+    page2, token2 = repository.query_uploads_by_customer(
+        "customer-1", limit=3, next_token=token1
+    )
+    assert len(page2) == 2
+    assert token2 is None
+
+    seen_ids = {u.upload_id for u in page1} | {u.upload_id for u in page2}
+    assert seen_ids == {f"upload-{i}" for i in range(5)}

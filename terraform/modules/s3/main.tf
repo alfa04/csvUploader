@@ -29,6 +29,18 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "raw_uploads" {
   }
 }
 
+resource "aws_s3_bucket_cors_configuration" "raw_uploads" {
+  count  = length(var.cors_allowed_origins) > 0 ? 1 : 0
+  bucket = aws_s3_bucket.raw_uploads.id
+
+  cors_rule {
+    allowed_methods = ["POST"]
+    allowed_origins = var.cors_allowed_origins
+    allowed_headers = ["*"]
+    max_age_seconds = 3000
+  }
+}
+
 # Versioning is deliberately off: each upload gets its own fresh key (raw/{upload_id}.csv), so
 # there's nothing to version - it would only add storage cost.
 

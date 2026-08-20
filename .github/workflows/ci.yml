@@ -25,6 +25,30 @@ jobs:
       - name: Test
         run: uv run pytest
 
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          VITE_API_URL: https://example.execute-api.us-east-1.amazonaws.com/dev
+          VITE_COGNITO_USER_POOL_ID: us-east-1_XXXXXXXXX
+          VITE_COGNITO_CLIENT_ID: XXXXXXXXXXXXXXXXXXXXXXXXXX
+        run: npm run build
+
   terraform-fmt:
     name: Terraform fmt
     runs-on: ubuntu-latest

@@ -17,6 +17,42 @@ security:
 
 paths:
   /uploads:
+    get:
+      summary: List this customer's uploads
+      description: >
+        Returns this customer's own uploads, newest first. Scoped to the caller's Cognito sub -
+        there is no way to list another customer's uploads.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Page size. Must be between 1 and 100.
+        - name: next_token
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Opaque pagination cursor from a previous response's next_token.
+      responses:
+        "200":
+          description: A page of this customer's uploads.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadsPage"
+        "400":
+          description: Invalid limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid ID token.
     post:
       summary: Start a CSV upload
       description: >
@@ -222,6 +258,18 @@ components:
         - valid_row_count
         - invalid_row_count
         - errors
+
+    UploadsPage:
+      type: object
+      properties:
+        uploads:
+          type: array
+          items:
+            $ref: "#/components/schemas/UploadStatus"
+        next_token:
+          type: string
+          description: Present only when another page is available.
+      required: [uploads]
 
     Record:
       type: object

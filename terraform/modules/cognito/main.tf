@@ -36,8 +36,13 @@ resource "aws_cognito_user_pool_client" "this" {
   # own "404 for both doesn't-exist and not-yours" design principle (see docs/adr/0006).
   prevent_user_existence_errors = "ENABLED"
 
+  # ALLOW_USER_SRP_AUTH: required because Amplify's <Authenticator> component always signs in
+  # via SRP (InitiateAuth with AuthFlow=USER_SRP_AUTH), never USER_PASSWORD_AUTH - without this,
+  # every sign-in attempt from the frontend fails with InvalidParameterException. Kept alongside
+  # ALLOW_USER_PASSWORD_AUTH, which the README's documented curl walkthrough still uses directly.
   explicit_auth_flows = [
     "ALLOW_USER_PASSWORD_AUTH",
+    "ALLOW_USER_SRP_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH",
   ]
 }

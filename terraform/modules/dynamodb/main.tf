@@ -8,6 +8,23 @@ resource "aws_dynamodb_table" "uploads" {
     type = "S"
   }
 
+  attribute {
+    name = "uploaded_by"
+    type = "S"
+  }
+
+  attribute {
+    name = "created_at"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "uploaded_by-created_at-index"
+    hash_key        = "uploaded_by"
+    range_key       = "created_at"
+    projection_type = "ALL"
+  }
+
   point_in_time_recovery {
     enabled = var.enable_point_in_time_recovery
   }
