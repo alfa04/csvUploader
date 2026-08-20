@@ -10,6 +10,14 @@ variable "upload_handler_invoke_arn" {
   type = string
 }
 
+variable "list_handler_function_name" {
+  type = string
+}
+
+variable "list_handler_invoke_arn" {
+  type = string
+}
+
 variable "status_handler_function_name" {
   type = string
 }
@@ -23,14 +31,6 @@ variable "records_handler_function_name" {
 }
 
 variable "records_handler_invoke_arn" {
-  type = string
-}
-
-variable "list_handler_function_name" {
-  type = string
-}
-
-variable "list_handler_invoke_arn" {
   type = string
 }
 
