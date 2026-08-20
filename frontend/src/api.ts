@@ -36,7 +36,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function listUploads(): Promise<{ uploads: UploadSummary[] }> {
-  return apiFetch<{ uploads: UploadSummary[] }>("/uploads");
+  return apiFetch<{ uploads: UploadSummary[] }>("/uploads?limit=100");
 }
 
 export async function startUpload(filename: string): Promise<PresignedUpload> {
