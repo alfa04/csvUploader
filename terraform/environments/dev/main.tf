@@ -435,6 +435,9 @@ data "aws_iam_policy_document" "github_actions_deploy_permissions" {
       "cloudfront:DeleteOriginAccessControl",
       "cloudfront:CreateInvalidation",
       "cloudfront:GetInvalidation",
+      "cloudfront:ListTagsForResource",
+      "cloudfront:GetDistributionConfig",
+      "cloudfront:GetOriginAccessControlConfig",
     ]
     resources = ["*"]
   }

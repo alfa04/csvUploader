@@ -47,12 +47,27 @@ jobs:
         id: tf_outputs
         working-directory: terraform/environments/dev
         run: |
+          set -euo pipefail
           terraform init -input=false
-          echo "api_url=$(terraform output -raw api_invoke_url)" >> "$GITHUB_OUTPUT"
-          echo "pool_id=$(terraform output -raw cognito_user_pool_id)" >> "$GITHUB_OUTPUT"
-          echo "client_id=$(terraform output -raw cognito_client_id)" >> "$GITHUB_OUTPUT"
-          echo "bucket=$(terraform output -raw frontend_bucket_name)" >> "$GITHUB_OUTPUT"
-          echo "distribution_id=$(terraform output -raw frontend_cloudfront_distribution_id)" >> "$GITHUB_OUTPUT"
+
+          api_url=$(terraform output -raw api_invoke_url)
+          pool_id=$(terraform output -raw cognito_user_pool_id)
+          client_id=$(terraform output -raw cognito_client_id)
+          bucket=$(terraform output -raw frontend_bucket_name)
+          distribution_id=$(terraform output -raw frontend_cloudfront_distribution_id)
+
+          for name in api_url pool_id client_id bucket distribution_id; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Terraform output for '$name' is empty - aborting rather than shipping a broken build." >&2
+              exit 1
+            fi
+          done
+
+          echo "api_url=$api_url" >> "$GITHUB_OUTPUT"
+          echo "pool_id=$pool_id" >> "$GITHUB_OUTPUT"
+          echo "client_id=$client_id" >> "$GITHUB_OUTPUT"
+          echo "bucket=$bucket" >> "$GITHUB_OUTPUT"
+          echo "distribution_id=$distribution_id" >> "$GITHUB_OUTPUT"
 
       - name: Build
         working-directory: frontend
