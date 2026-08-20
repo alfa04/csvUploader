@@ -48,8 +48,22 @@ def mocked_aws(aws_env):
         dynamodb.create_table(
             TableName=UPLOADS_TABLE,
             KeySchema=[{"AttributeName": "upload_id", "KeyType": "HASH"}],
-            AttributeDefinitions=[{"AttributeName": "upload_id", "AttributeType": "S"}],
+            AttributeDefinitions=[
+                {"AttributeName": "upload_id", "AttributeType": "S"},
+                {"AttributeName": "uploaded_by", "AttributeType": "S"},
+                {"AttributeName": "created_at", "AttributeType": "S"},
+            ],
             BillingMode="PAY_PER_REQUEST",
+            GlobalSecondaryIndexes=[
+                {
+                    "IndexName": "uploaded_by-created_at-index",
+                    "KeySchema": [
+                        {"AttributeName": "uploaded_by", "KeyType": "HASH"},
+                        {"AttributeName": "created_at", "KeyType": "RANGE"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                }
+            ],
         )
         dynamodb.create_table(
             TableName=RECORDS_TABLE,
