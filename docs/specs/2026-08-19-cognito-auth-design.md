@@ -23,7 +23,8 @@ That, plus the self-service and audit-trail gaps, is enough to justify revisitin
 Replace API keys with a **Cognito User Pool**, authenticated via API Gateway's native
 `COGNITO_USER_POOLS` authorizer. No Hosted UI - this is a pure API, so customers call Cognito's
 public `SignUp` / `ConfirmSignUp` / `InitiateAuth` operations directly (plain HTTPS, no AWS
-credentials required for these specific operations) and use the resulting access token as
+credentials required for these specific operations) and use the resulting ID token (not the
+access token - API Gateway's authorizer checks the `aud` claim, which only ID tokens carry) as
 `Authorization: Bearer <token>` against the CSV API.
 
 Per-customer data isolation is enforced: every upload is stamped with the caller's Cognito `sub`,

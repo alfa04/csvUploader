@@ -48,7 +48,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "401":
-          description: Missing or invalid access token.
+          description: Missing or invalid ID token.
 
   /uploads/{upload_id}:
     get:
@@ -69,7 +69,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "401":
-          description: Missing or invalid access token.
+          description: Missing or invalid ID token.
 
   /uploads/{upload_id}/records:
     get:
@@ -115,7 +115,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "401":
-          description: Missing or invalid access token.
+          description: Missing or invalid ID token.
 
 components:
   securitySchemes:
@@ -124,8 +124,10 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: >
-        Access token from Cognito's InitiateAuth (USER_PASSWORD_AUTH flow), obtained after
-        SignUp + ConfirmSignUp. See README.md for the full sign-up/login walkthrough.
+        ID token from Cognito's InitiateAuth (USER_PASSWORD_AUTH flow), obtained after
+        SignUp + ConfirmSignUp. Must be the ID token, not the access token - API Gateway's
+        authorizer validates the `aud` claim, which only ID tokens carry. See README.md for
+        the full sign-up/login walkthrough.
 
   parameters:
     UploadId:

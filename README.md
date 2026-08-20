@@ -64,8 +64,12 @@ aws cognito-idp confirm-sign-up --region "$REGION" --client-id "$CLIENT_ID" \
 AUTH=$(aws cognito-idp initiate-auth --region "$REGION" --client-id "$CLIENT_ID" \
   --auth-flow USER_PASSWORD_AUTH \
   --auth-parameters USERNAME=customer@example.com,PASSWORD='SomeStrongPassw0rd')
-API_TOKEN=$(echo "$AUTH" | jq -r .AuthenticationResult.AccessToken)
+API_TOKEN=$(echo "$AUTH" | jq -r .AuthenticationResult.IdToken)
 ```
+
+Use the **ID token**, not the access token - API Gateway's `COGNITO_USER_POOLS` authorizer
+validates the token's `aud` claim, which access tokens don't carry (they carry `client_id`
+instead), so an access token is rejected outright regardless of its expiry.
 
 `$API_TOKEN` is short-lived (~1 hour); re-run `initiate-auth` (or use the returned
 `RefreshToken`) to get a new one.

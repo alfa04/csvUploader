@@ -21,7 +21,8 @@ The explicit priority for the redesign: security and ease of use above everythin
 
 Replace API keys with a Cognito User Pool, authenticated via API Gateway's native
 `COGNITO_USER_POOLS` authorizer. No Hosted UI - customers call Cognito's public `SignUp` /
-`ConfirmSignUp` / `InitiateAuth` operations directly and use the resulting access token as
+`ConfirmSignUp` / `InitiateAuth` operations directly and use the resulting ID token (not the
+access token - API Gateway's authorizer checks the `aud` claim, which only ID tokens carry) as
 `Authorization: Bearer <token>`.
 
 Per-customer data isolation is enforced: every upload is stamped with the caller's Cognito `sub`,
