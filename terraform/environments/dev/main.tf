@@ -12,6 +12,11 @@ module "s3" {
 
   bucket_name     = "${local.name_prefix}-raw-uploads-${data.aws_caller_identity.current.account_id}"
   expiration_days = var.s3_expiration_days
+
+  cors_allowed_origins = [
+    "https://${module.frontend_hosting.cloudfront_domain_name}",
+    "http://localhost:5173",
+  ]
 }
 
 module "dynamodb" {

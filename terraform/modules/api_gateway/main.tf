@@ -146,6 +146,150 @@ resource "aws_lambda_permission" "get_records" {
   source_arn    = "${aws_api_gateway_rest_api.this.execution_arn}/*/${aws_api_gateway_method.get_records.http_method}${aws_api_gateway_resource.records.path}"
 }
 
+# --- CORS preflight (OPTIONS) on every resource - browsers preflight any request carrying a
+# non-safelisted header (every request here carries Authorization), and MOCK-integration OPTIONS
+# is the standard way to answer that without invoking Lambda. Access-Control-Allow-Origin is "*"
+# here (matching the real responses' header in shared/http.py) since auth is a bearer token, not
+# a cookie - there's no CSRF exposure a wildcard origin would create. ---
+
+resource "aws_api_gateway_method" "options_uploads" {
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.uploads.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_uploads" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.uploads.id
+  http_method = aws_api_gateway_method.options_uploads.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "options_uploads" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.uploads.id
+  http_method = aws_api_gateway_method.options_uploads.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "options_uploads" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.uploads.id
+  http_method = aws_api_gateway_method.options_uploads.http_method
+  status_code = aws_api_gateway_method_response.options_uploads.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+
+  depends_on = [aws_api_gateway_integration.options_uploads]
+}
+
+resource "aws_api_gateway_method" "options_upload_id" {
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.upload_id.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_upload_id" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.upload_id.id
+  http_method = aws_api_gateway_method.options_upload_id.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "options_upload_id" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.upload_id.id
+  http_method = aws_api_gateway_method.options_upload_id.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "options_upload_id" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.upload_id.id
+  http_method = aws_api_gateway_method.options_upload_id.http_method
+  status_code = aws_api_gateway_method_response.options_upload_id.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+
+  depends_on = [aws_api_gateway_integration.options_upload_id]
+}
+
+resource "aws_api_gateway_method" "options_records" {
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.records.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_records" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.records.id
+  http_method = aws_api_gateway_method.options_records.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "options_records" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.records.id
+  http_method = aws_api_gateway_method.options_records.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "options_records" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.records.id
+  http_method = aws_api_gateway_method.options_records.http_method
+  status_code = aws_api_gateway_method_response.options_records.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+
+  depends_on = [aws_api_gateway_integration.options_records]
+}
+
 # --- Deployment / stage ---
 
 resource "aws_api_gateway_deployment" "this" {
@@ -161,10 +305,16 @@ resource "aws_api_gateway_deployment" "this" {
       aws_api_gateway_method.list_uploads.id,
       aws_api_gateway_method.get_upload_status.id,
       aws_api_gateway_method.get_records.id,
+      aws_api_gateway_method.options_uploads.id,
+      aws_api_gateway_method.options_upload_id.id,
+      aws_api_gateway_method.options_records.id,
       aws_api_gateway_integration.post_uploads.id,
       aws_api_gateway_integration.list_uploads.id,
       aws_api_gateway_integration.get_upload_status.id,
       aws_api_gateway_integration.get_records.id,
+      aws_api_gateway_integration.options_uploads.id,
+      aws_api_gateway_integration.options_upload_id.id,
+      aws_api_gateway_integration.options_records.id,
     ]))
   }
 

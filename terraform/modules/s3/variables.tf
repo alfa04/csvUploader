@@ -8,3 +8,9 @@ variable "expiration_days" {
   type        = number
   default     = 90
 }
+
+variable "cors_allowed_origins" {
+  description = "Origins allowed to make cross-origin browser requests (POST) to this bucket. Empty list disables CORS entirely - the default, since prod has no frontend yet."
+  type        = list(string)
+  default     = []
+}
