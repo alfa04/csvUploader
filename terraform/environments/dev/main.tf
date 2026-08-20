@@ -137,6 +137,21 @@ module "iam_records_handler" {
   inline_policy_json = data.aws_iam_policy_document.records_handler_permissions.json
 }
 
+data "aws_iam_policy_document" "list_handler_permissions" {
+  statement {
+    effect    = "Allow"
+    actions   = ["dynamodb:Query"]
+    resources = ["${module.dynamodb.uploads_table_arn}/index/uploaded_by-created_at-index"]
+  }
+}
+
+module "iam_list_handler" {
+  source = "../../modules/iam"
+
+  function_name      = "${local.name_prefix}-list-handler"
+  inline_policy_json = data.aws_iam_policy_document.list_handler_permissions.json
+}
+
 # --- Lambda functions ---
 
 module "lambda_upload_handler" {
@@ -206,6 +221,21 @@ module "lambda_records_handler" {
   }
 }
 
+module "lambda_list_handler" {
+  source = "../../modules/lambda"
+
+  function_name      = "${local.name_prefix}-list-handler"
+  source_dir         = "${local.build_dir}/functions/list_handler"
+  handler            = "list_handler.handler.handler"
+  role_arn           = module.iam_list_handler.role_arn
+  layer_arns         = [aws_lambda_layer_version.dependencies.arn]
+  log_retention_days = var.log_retention_days
+
+  environment_variables = {
+    UPLOADS_TABLE_NAME = module.dynamodb.uploads_table_name
+  }
+}
+
 # --- S3 -> process_handler trigger ---
 
 resource "aws_lambda_permission" "s3_invoke_process_handler" {
@@ -249,6 +279,8 @@ module "api_gateway" {
   status_handler_invoke_arn     = module.lambda_status_handler.invoke_arn
   records_handler_function_name = module.lambda_records_handler.function_name
   records_handler_invoke_arn    = module.lambda_records_handler.invoke_arn
+  list_handler_function_name    = module.lambda_list_handler.function_name
+  list_handler_invoke_arn       = module.lambda_list_handler.invoke_arn
 
   cognito_user_pool_arn = module.cognito.user_pool_arn
 
@@ -269,6 +301,7 @@ module "monitoring" {
     process-handler = module.lambda_process_handler.function_name
     status-handler  = module.lambda_status_handler.function_name
     records-handler = module.lambda_records_handler.function_name
+    list-handler    = module.lambda_list_handler.function_name
   }
 
   api_gateway_name = module.api_gateway.api_name
