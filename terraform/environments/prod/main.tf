@@ -3,6 +3,9 @@ data "aws_caller_identity" "current" {}
 locals {
   name_prefix = "csvuploader-${var.environment}"
   build_dir   = "${path.root}/../../../build"
+  # Written by scripts/build_lambda_packages.sh, which always runs before plan/apply - ties the
+  # deployed Lambda functions' GitCommit tag to the exact commit whose code was actually zipped.
+  git_commit_sha = trimspace(file("${local.build_dir}/git_sha.txt"))
 }
 
 # --- Storage ---
@@ -163,6 +166,7 @@ module "lambda_upload_handler" {
   role_arn           = module.iam_upload_handler.role_arn
   layer_arns         = [aws_lambda_layer_version.dependencies.arn]
   log_retention_days = var.log_retention_days
+  git_commit_sha     = local.git_commit_sha
 
   environment_variables = {
     UPLOADS_TABLE_NAME = module.dynamodb.uploads_table_name
@@ -183,6 +187,7 @@ module "lambda_process_handler" {
   log_retention_days = var.log_retention_days
   enable_dlq         = true
   dlq_target_arn     = aws_sqs_queue.process_handler_dlq.arn
+  git_commit_sha     = local.git_commit_sha
 
   environment_variables = {
     UPLOADS_TABLE_NAME = module.dynamodb.uploads_table_name
@@ -199,6 +204,7 @@ module "lambda_status_handler" {
   role_arn           = module.iam_status_handler.role_arn
   layer_arns         = [aws_lambda_layer_version.dependencies.arn]
   log_retention_days = var.log_retention_days
+  git_commit_sha     = local.git_commit_sha
 
   environment_variables = {
     UPLOADS_TABLE_NAME = module.dynamodb.uploads_table_name
@@ -214,6 +220,7 @@ module "lambda_records_handler" {
   role_arn           = module.iam_records_handler.role_arn
   layer_arns         = [aws_lambda_layer_version.dependencies.arn]
   log_retention_days = var.log_retention_days
+  git_commit_sha     = local.git_commit_sha
 
   environment_variables = {
     UPLOADS_TABLE_NAME = module.dynamodb.uploads_table_name
@@ -230,6 +237,7 @@ module "lambda_list_handler" {
   role_arn           = module.iam_list_handler.role_arn
   layer_arns         = [aws_lambda_layer_version.dependencies.arn]
   log_retention_days = var.log_retention_days
+  git_commit_sha     = local.git_commit_sha
 
   environment_variables = {
     UPLOADS_TABLE_NAME = module.dynamodb.uploads_table_name

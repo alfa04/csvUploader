@@ -72,6 +72,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # terraform validate evaluates locals' file() calls eagerly, even though this job never
+      # runs scripts/build_lambda_packages.sh (which normally writes this file before a real
+      # plan/apply) - a placeholder is enough since validate only checks config, not real values.
+      - name: Create placeholder build SHA file
+        run: mkdir -p build && git rev-parse HEAD > build/git_sha.txt
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
         with:
