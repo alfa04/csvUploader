@@ -1,0 +1,4 @@
+# Force LF line endings on checkout regardless of the local Git client's autocrlf setting.
+# Everything in this repo runs on Linux (Lambda, GitHub Actions, WSL) - a CRLF-checked-out shell
+# script breaks its #!/usr/bin/env bash shebang.
+* text=auto eol=lf
