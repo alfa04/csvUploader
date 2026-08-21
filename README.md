@@ -16,6 +16,7 @@ defined in Terraform. Dev deploys on every merge to `main`; prod is applied by h
 - [Development workflow](#development-workflow)
 - [CI/CD](#cicd)
 - [Design decisions](#design-decisions)
+- [Future work](#future-work)
 
 ## Overview
 
@@ -295,3 +296,11 @@ Architecture Decision Records live in [docs/adr](docs/adr):
 5. [Partial ingest with per-row errors](docs/adr/0005-validation-policy.md)
 6. [Cognito authentication](docs/adr/0006-cognito-auth.md)
 7. [Frontend: Amplify auth + S3/CloudFront hosting](docs/adr/0007-frontend-hosting.md)
+
+## Future work
+
+Nothing here is broken, but an architecture review surfaced real friction worth working through
+deliberately - a couple of duplicated invariants with no single owner, one latent bug in how
+`process_handler` recovers an upload id from its S3 key, and some Terraform duplication that
+exceeds what ADR 0004 actually justifies. Full writeup, including which one to pick up first:
+[docs/architecture-improvements.md](docs/architecture-improvements.md).
