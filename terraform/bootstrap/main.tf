@@ -64,21 +64,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "terraform_state" {
   }
 }
 
-resource "aws_dynamodb_table" "terraform_lock" {
-  name         = "${var.project_name}-tfstate-lock"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "LockID"
-
-  attribute {
-    name = "LockID"
-    type = "S"
-  }
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
 # API Gateway account settings are account+region-wide, not per-API - AWS refuses to enable
 # access logging on ANY stage until this is set, so it belongs here rather than duplicated (and
 # conflicting) across the dev/prod environment configs.

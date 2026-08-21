@@ -168,9 +168,9 @@ Find the deployed URL with `terraform output -raw frontend_url` in `terraform/en
 
 Infrastructure is managed with Terraform under `terraform/`:
 
-- `terraform/bootstrap` - one-time setup of the remote state backend (S3 bucket + DynamoDB lock
-  table) and the account-wide API Gateway CloudWatch logging role. Applied manually, once, before
-  anything else.
+- `terraform/bootstrap` - one-time setup of the remote state backend (S3 bucket, using S3's native
+  lock-file support for state locking) and the account-wide API Gateway CloudWatch logging role.
+  Applied manually, once, before anything else.
 - `terraform/modules` - reusable modules (S3, DynamoDB, Lambda, API Gateway, IAM, monitoring,
   GitHub OIDC).
 - `terraform/environments/{dev,prod}` - per-environment root configurations, each with its own
