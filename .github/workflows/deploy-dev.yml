@@ -7,7 +7,7 @@ on:
 
 permissions:
   id-token: write # required to request the OIDC token AWS exchanges for credentials
-  contents: read
+  contents: write # required to push the deployed/dev tag after a successful apply
 
 concurrency:
   group: deploy-dev
@@ -63,3 +63,6 @@ jobs:
       - name: Terraform apply
         working-directory: terraform/environments/dev
         run: terraform apply -input=false -auto-approve dev.tfplan
+
+      - name: Tag this deploy
+        run: ./scripts/tag-deploy.sh dev

@@ -47,7 +47,32 @@ AWS_PROFILE=csvuploader terraform plan -input=false -out=prod.tfplan
 
 # 3. Apply only after reviewing the plan output above
 AWS_PROFILE=csvuploader terraform apply "prod.tfplan"
+
+# 4. Record that this commit is now what's running in prod
+./scripts/tag-deploy.sh prod
 ```
 
 There's no `github_oidc` module instantiated in `terraform/environments/prod/main.tf` at all - CI
 has no path to prod, by construction, not just by convention.
+
+## Checking what's actually deployed where
+
+Every successful deploy moves a `deployed/<env>` git tag to the commit that was actually applied -
+`deployed/dev` automatically (the last step of `deploy-dev.yml`), `deployed/prod` manually (step 4
+above). To see whether an environment is caught up with `main`:
+
+```bash
+git fetch --tags
+git log deployed/prod..main --oneline   # empty output = prod is fully caught up
+```
+
+Anything printed is a commit that's merged but not yet applied to that environment.
+
+This is git history, separate from (but consistent with) the `GitCommit` tag Terraform puts on
+each Lambda function - that one answers "what commit is *this specific function* running" from
+the AWS side, checkable directly without touching git at all:
+
+```bash
+aws lambda get-function --function-name csvuploader-dev-list-handler \
+  --profile csvuploader --region us-east-1 --query 'Tags'
+```
