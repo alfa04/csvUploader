@@ -16,3 +16,13 @@
 body {
   @apply bg-slate-50 text-slate-900;
 }
+
+/* Amplify already centers [data-amplify-container] via `place-self: center` (its own default
+   CSS), but only within whatever height [data-amplify-authenticator] actually has - which
+   defaults to its content's height, so the card just sits at the top of the page. Giving it
+   the full viewport height is the only change needed to get true vertical+horizontal centering;
+   the card's width (30rem) and border/shadow are already sensible Amplify defaults. */
+[data-amplify-authenticator] {
+  min-height: 100vh;
+}
+
