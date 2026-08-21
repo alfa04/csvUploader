@@ -1,47 +1,151 @@
 # csvUploader
 
-A cloud-based analytics service for ingesting, validating, storing, and retrieving drug discovery
-data (drug name, target, efficacy) submitted as CSV files. Built on AWS Lambda, API Gateway, S3,
-and DynamoDB, with all infrastructure defined in Terraform.
+[![CI](https://github.com/alfa04/csvUploader/actions/workflows/ci.yml/badge.svg)](https://github.com/alfa04/csvUploader/actions/workflows/ci.yml)
+
+A cloud service for ingesting, validating, storing, and retrieving drug discovery data (drug
+name, target, efficacy) submitted as CSV files. Lambda, API Gateway, S3, and DynamoDB, entirely
+defined in Terraform. Dev deploys on every merge to `main`; prod is applied by hand.
+
+## Contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Tech stack and layout](#tech-stack-and-layout)
+- [Quick start](#quick-start)
+- [API](#api)
+- [Development workflow](#development-workflow)
+- [CI/CD](#cicd)
+- [Design decisions](#design-decisions)
+
+## Overview
+
+A customer uploads a CSV, the service validates and parses it row by row, and the customer can
+then pull back the parsed records or a summary of what failed and why. Everything is
+authenticated per-customer through Cognito - there's no shared API key and no admin-provisioned
+accounts, customers sign themselves up.
+
+There are two environments: **dev**, which is the active development target and the only one
+with a deployed frontend, and **prod**, which runs the same API and is updated deliberately, on
+a slight delay. [Checking what's actually deployed where](#cicd) covers how to tell them apart at
+any given moment.
+
+<!-- screenshots of the dashboard go here -->
 
 ## Architecture
 
-```
-Client
-  │ 1. POST /uploads  (Bearer token)
-  ▼
-API Gateway ──► upload_handler Lambda ──► creates "pending" record in DynamoDB(uploads)
-  │                                        returns presigned S3 POST (url + fields, 5 min expiry,
-  │                                        content-length-range 0-10MB, content-type=text/csv)
-  ▼
-Client uploads CSV directly to S3 (raw bucket, key: raw/{upload_id}.csv)
-  │
-  ▼
-S3 ObjectCreated event ──► process_handler Lambda
-                              - downloads & validates CSV (structural + per-row)
-                              - writes valid rows to DynamoDB(records)
-                              - updates DynamoDB(uploads) status + error list
-                              - on repeated failure → SQS dead-letter queue
+```mermaid
+flowchart TD
+    Client(["Customer (browser / curl)"])
 
-Client
-  │ 2. GET /uploads/{id}          (Bearer token) → status_handler Lambda
-  │ 3. GET /uploads/{id}/records  (Bearer token) → records_handler Lambda (paginated)
-  │ 4. GET /uploads               (Bearer token) → list_handler Lambda (paginated)
-  ▼
-API Gateway
+    Client -->|"1. POST /uploads"| APIGW["API Gateway"]
+    APIGW --> UploadFn["upload_handler"]
+    UploadFn -->|"creates pending record"| UploadsTable[("DynamoDB: uploads")]
+    UploadFn -->|"presigned S3 POST"| Client
+
+    Client -->|"2. uploads CSV directly, no Lambda involved"| S3[("S3: raw bucket")]
+    S3 -->|"ObjectCreated event"| ProcessFn["process_handler"]
+    ProcessFn -->|"valid rows"| RecordsTable[("DynamoDB: records")]
+    ProcessFn -->|"status + per-row errors"| UploadsTable
+    ProcessFn -.->|"repeated failure"| DLQ[["SQS dead-letter queue"]]
+
+    Client -->|"3. GET /uploads/:id"| APIGW
+    APIGW --> StatusFn["status_handler"] --> UploadsTable
+
+    Client -->|"4. GET /uploads/:id/records"| APIGW
+    APIGW --> RecordsFn["records_handler"] --> RecordsTable
+
+    Client -->|"5. GET /uploads"| APIGW
+    APIGW --> ListFn["list_handler"] --> UploadsTable
+
+    APIGW -.->|"validates the Bearer ID token"| Cognito[("Cognito User Pool")]
 ```
 
-The upload never touches Lambda directly - the client uploads straight to S3 via a presigned
-POST, which is what lets this scale past API Gateway's payload limits. That also means
-processing is asynchronous: `POST /uploads` returns immediately with an `upload_id`, and the
-client polls `GET /uploads/{upload_id}` for the outcome. See [`docs/adr`](docs/adr) for why each
-piece of this is shaped the way it is - upload mechanism, database choice, auth strategy,
-environment/CI strategy, and validation policy each have their own ADR.
+The upload itself never touches Lambda - the client uploads straight to S3 via a presigned POST,
+which is what lets this scale past API Gateway's payload limits without a bigger instance or a
+different service. That also makes ingestion asynchronous by construction: `POST /uploads`
+returns immediately with an `upload_id`, and the client polls `GET /uploads/{upload_id}` for the
+outcome rather than blocking on it.
+
+Each Lambda has one execution role, scoped to exactly the table/bucket actions it needs -
+`list_handler`, for instance, can only `Query` the one GSI it reads from. See
+[docs/adr](docs/adr) for the reasoning behind each major choice here: upload mechanism, database,
+auth, environment strategy, and validation policy each have their own record.
+
+## Tech stack and layout
+
+| Layer          | Tech                                                                   |
+| -------------- | ----------------------------------------------------------------------- |
+| Backend        | Python 3.13, AWS Lambda, `aws-lambda-powertools`, boto3                |
+| API            | API Gateway (REST), Cognito User Pools authorizer                       |
+| Storage        | DynamoDB (on-demand), S3                                                |
+| Async pipeline | S3 event notifications, SQS (dead-letter queue)                         |
+| Frontend       | React 18, TypeScript, Vite, Tailwind CSS v4, AWS Amplify UI             |
+| Infrastructure | Terraform, AWS, one state bucket with S3-native locking                 |
+| CI/CD          | GitHub Actions, OIDC federation (no long-lived AWS credentials in CI)   |
+| Testing        | pytest + moto (52 tests), ruff, `terraform validate`                    |
+
+```
+csvUploader/
+├── src/                    Lambda handlers (Python 3.13)
+│   ├── upload_handler/     POST /uploads - creates the record, returns a presigned S3 POST
+│   ├── process_handler/    S3 ObjectCreated trigger - validates and parses the CSV
+│   ├── status_handler/     GET /uploads/{id}
+│   ├── records_handler/    GET /uploads/{id}/records
+│   ├── list_handler/       GET /uploads
+│   └── shared/             validation, models, repository, auth, logging - used by all five
+├── tests/
+│   ├── unit/                pytest, AWS mocked with moto
+│   └── fixtures/            sample CSVs: valid, malformed, oversized, non-UTF-8, ...
+├── frontend/                React + Vite dashboard (dev only, see ADR 0007)
+│   └── src/{pages,components}/
+├── terraform/
+│   ├── bootstrap/           one-time: the state bucket itself, applied manually
+│   ├── modules/              s3, dynamodb, lambda, api_gateway, cognito, iam, monitoring,
+│   │                          frontend_hosting, github_oidc
+│   └── environments/
+│       ├── dev/               auto-applied by CI on every merge to main
+│       └── prod/              applied by hand, always
+├── docs/
+│   ├── adr/                 architecture decision records
+│   ├── openapi.yaml           full API contract
+│   └── deploying.md           CI/CD internals and the manual prod procedure
+├── scripts/
+│   ├── build_lambda_packages.sh   stages Lambda zips - required before any terraform command
+│   └── tag-deploy.sh              moves the deployed/<env> git tag after a deploy
+└── .github/workflows/
+```
+
+## Quick start
+
+Prerequisites: [uv](https://docs.astral.sh/uv/), Node 22, the AWS CLI, and (only if you're going
+to run Terraform yourself) an AWS profile with access to this project's account.
+
+```bash
+uv sync
+uv run pytest        # 52 tests, nothing talks to real AWS
+uv run ruff check .
+```
+
+The frontend runs against whichever backend you point it at - normally the shared dev
+deployment, so you don't need your own infrastructure just to work on the UI:
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+# fill in .env from `terraform output` in terraform/environments/dev:
+#   VITE_API_URL, VITE_COGNITO_USER_POOL_ID, VITE_COGNITO_CLIENT_ID
+npm run dev
+```
+
+To exercise the actual API - signing up, uploading a file, reading it back - see [API](#api)
+below. To stand up your own copy of the infrastructure from scratch, start with
+[docs/deploying.md](docs/deploying.md).
 
 ## API
 
 All endpoints require an `Authorization: Bearer <token>` header. Customers sign themselves up -
-there's no operator-provisioned secret. Get the pool/client ids for your deployed environment:
+there's no operator-provisioned secret. Get the pool/client ids for your target environment:
 
 ```bash
 cd terraform/environments/dev
@@ -50,15 +154,15 @@ API_URL=$(AWS_PROFILE=csvuploader terraform output -raw api_invoke_url)
 REGION=us-east-1
 ```
 
-**Sign up, confirm, and log in** (requires `jq` and the AWS CLI, called unauthenticated - these
-specific Cognito operations don't need AWS credentials):
+**Sign up, confirm, and log in** (requires `jq` and the AWS CLI - these specific Cognito
+operations are unauthenticated, so no AWS credentials needed here):
 
 ```bash
 aws cognito-idp sign-up --region "$REGION" --client-id "$CLIENT_ID" \
   --username customer@example.com --password 'SomeStrongPassw0rd' \
   --user-attributes Name=email,Value=customer@example.com
 
-# Check the inbox for customer@example.com for the verification code, then:
+# check the inbox for customer@example.com for the verification code, then:
 aws cognito-idp confirm-sign-up --region "$REGION" --client-id "$CLIENT_ID" \
   --username customer@example.com --confirmation-code 123456
 
@@ -69,126 +173,120 @@ API_TOKEN=$(echo "$AUTH" | jq -r .AuthenticationResult.IdToken)
 ```
 
 Use the **ID token**, not the access token - API Gateway's `COGNITO_USER_POOLS` authorizer
-validates the token's `aud` claim, which access tokens don't carry (they carry `client_id`
-instead), so an access token is rejected outright regardless of its expiry.
+validates the token's `aud` claim, which access tokens don't carry, so an access token is
+rejected outright regardless of its expiry. `$API_TOKEN` lasts about an hour; re-run
+`initiate-auth` (or use the returned `RefreshToken`) for a new one.
 
-`$API_TOKEN` is short-lived (~1 hour); re-run `initiate-auth` (or use the returned
-`RefreshToken`) to get a new one.
-
-Full contract: [`docs/openapi.yaml`](docs/openapi.yaml).
-
-**Start an upload** (requires `jq`):
+Full contract: [docs/openapi.yaml](docs/openapi.yaml).
 
 ```bash
+# start an upload
 RESPONSE=$(curl -s -X POST "$API_URL/uploads" \
   -H "Authorization: Bearer $API_TOKEN" -H "Content-Type: application/json" \
   -d '{"filename": "drugs.csv"}')
 UPLOAD_ID=$(echo "$RESPONSE" | jq -r .upload_id)
-echo "$RESPONSE"
-# {"upload_id": "...", "upload_url": "...", "upload_fields": {...}, "expires_in": 300}
-```
 
-**Upload the file** to the returned presigned POST - the `file` field must come last:
-
-```bash
+# upload the file to the presigned POST it returned - the "file" field must come last
 curl -s -X POST "$(echo "$RESPONSE" | jq -r .upload_url)" \
   $(echo "$RESPONSE" | jq -r '.upload_fields | to_entries[] | "-F \(.key)=\(.value)"') \
   -F "file=@drugs.csv;type=text/csv"
-```
 
-**Check status** (poll until `status` is no longer `pending`/`processing`):
-
-```bash
+# poll until status is no longer pending/processing
 curl -s "$API_URL/uploads/$UPLOAD_ID" -H "Authorization: Bearer $API_TOKEN"
-# {"upload_id": "...", "status": "succeeded", "row_count": 3, "valid_row_count": 3,
-#  "invalid_row_count": 0, "errors": [], ...}
-```
 
-**Retrieve parsed records:**
-
-```bash
+# read the parsed rows back
 curl -s "$API_URL/uploads/$UPLOAD_ID/records" -H "Authorization: Bearer $API_TOKEN"
-# {"upload_id": "...", "status": "succeeded",
-#  "records": [{"row_number": 1, "drug_name": "Aspirin", "target": "COX-1", "efficacy": 72.5}, ...]}
-```
 
-**List your uploads** (newest first, paginated):
-
-```bash
+# list everything you've uploaded, newest first, paginated
 curl -s "$API_URL/uploads" -H "Authorization: Bearer $API_TOKEN"
-# {"uploads": [{"upload_id": "...", "status": "succeeded", "original_filename": "drugs.csv",
-#  "row_count": 3, "valid_row_count": 3, "invalid_row_count": 0, ...}, ...],
-#  "next_token": "..."}
 ```
 
-### CSV format
+**CSV format:** header row must contain exactly `drug_name`, `target`, `efficacy`
+(case/whitespace-insensitive). `drug_name` and `target` are required, non-empty, ≤255 characters;
+`efficacy` must be numeric, 0-100. A bad row is skipped and reported individually rather than
+failing the whole file - see [ADR 0005](docs/adr/0005-validation-policy.md).
 
-Header row must contain exactly `drug_name`, `target`, `efficacy` (case/whitespace-insensitive).
-`drug_name` and `target` are required, non-empty, ≤255 characters. `efficacy` is required and
-must be numeric, 0-100. Rows failing these checks are skipped and reported individually rather
-than failing the whole upload - see
-[`docs/adr/0005-validation-policy.md`](docs/adr/0005-validation-policy.md).
+## Development workflow
 
-## Local development
+Everything branches off `main`. A PR triggers `ci.yml` - lint, the pytest suite, a frontend
+build, `terraform fmt`, and `terraform validate` against every root module (no AWS credentials
+touch a PR; see [why](docs/deploying.md#why-prs-dont-get-aws-credentials)). Once it's merged,
+`deploy-dev.yml` builds the Lambda packages, plans, applies to dev, and moves the `deployed/dev`
+git tag to that commit - all without anyone touching a keyboard.
+
+One consequence worth knowing before you push a second PR from the same branch: merges to this
+repo are **squash merges**, so a branch's commits get folded into one on `main` and the branch
+itself is left pointing at history `main` no longer has. Committing more work onto that same
+branch reintroduces everything `main` already absorbed, which git sees as a conflict even though
+nothing is actually in dispute. Cut a fresh branch off current `main` for each new PR rather than
+reusing one that already merged.
+
+Prod never moves on its own - there's no CI path to it, by construction, not by policy (there's
+no `github_oidc` module instantiated in `terraform/environments/prod` at all). Catching it up is
+a deliberate, manual act: build the Lambda packages, run `terraform plan`, read the plan, then
+`apply`, then run `./scripts/tag-deploy.sh prod`. The full procedure, including the one-time AWS
+setup, is in [docs/deploying.md](docs/deploying.md).
+
+## CI/CD
+
+```mermaid
+flowchart LR
+    subgraph pr["Pull request"]
+        direction TB
+        lint["lint + pytest"]
+        fe["frontend build"]
+        fmt["terraform fmt"]
+        val["terraform validate<br/>(no AWS credentials)"]
+    end
+
+    subgraph merge["Merge to main"]
+        direction TB
+        dd["deploy-dev.yml:<br/>plan -> apply -> tag deployed/dev"]
+        fd["deploy-frontend-dev.yml<br/>(only if frontend/** changed)"]
+    end
+
+    subgraph prod["Prod - manual, always"]
+        direction TB
+        pp["terraform plan, reviewed by hand"]
+        pa["terraform apply"]
+        pt["tag-deploy.sh prod"]
+        pp --> pa --> pt
+    end
+
+    pr -->|approved| merge
+    merge -.->|"never automatic"| prod
+```
+
+Three workflows, each with one job: `ci.yml` gatekeeps every PR, `deploy-dev.yml` ships the
+backend (and infrastructure) to dev on every merge, `deploy-frontend-dev.yml` ships the dashboard
+to dev when `frontend/**` changes. All three authenticate to AWS via OIDC - GitHub requests a
+short-lived token and exchanges it for AWS credentials scoped to one IAM role, so no AWS secret
+ever lives in this repo's settings.
+
+To check whether an environment is actually caught up with `main` rather than guessing from the
+last deploy you remember:
 
 ```bash
-uv sync                # install dependencies
-uv run pytest          # run the test suite (52 tests, moto-mocked AWS)
-uv run ruff check .    # lint
+git fetch --tags
+git log deployed/prod..main --oneline   # empty output = prod is fully caught up
 ```
 
-Handlers live under `src/<name>_handler/`, sharing common code from `src/shared/` (validation,
-models, DynamoDB/S3 clients, logging). Tests live under `tests/unit/`, with fixture CSVs in
-`tests/fixtures/`.
-
-## Frontend
-
-A React dashboard (`frontend/`) lets a customer sign up, confirm their email, log in, upload a
-CSV, and see their own upload history with summary stats - the same Cognito pool and API used
-above, with no separate identity system.
-
-Local development:
+`deployed/dev` and `deployed/prod` are git tags that move to the commit each environment last
+successfully deployed - dev's moves itself, prod's moves when you run `tag-deploy.sh`. Separately,
+every Lambda function is tagged with the exact commit its running code was built from, checkable
+straight from AWS without touching git at all:
 
 ```bash
-cd frontend
-npm install
-cp .env.example .env
-# fill in .env with the real values from `terraform output` in terraform/environments/dev
-# (api_invoke_url, cognito_user_pool_id, cognito_client_id)
-npm run dev
+aws lambda get-function --function-name csvuploader-dev-list-handler \
+  --profile csvuploader --region us-east-1 --query 'Tags'
 ```
 
-Deployed automatically to dev on merge to `main` (when files under `frontend/` change), via
-GitHub Actions - see `.github/workflows/deploy-frontend-dev.yml`. Hosted on S3 + CloudFront,
-managed by Terraform (`terraform/modules/frontend_hosting`), dev only for now - see
-[ADR 0007](docs/adr/0007-frontend-hosting.md) for why, and for the hosting/auth-library choice.
-Find the deployed URL with `terraform output -raw frontend_url` in `terraform/environments/dev`.
-
-## Infrastructure
-
-Infrastructure is managed with Terraform under `terraform/`:
-
-- `terraform/bootstrap` - one-time setup of the remote state backend (S3 bucket, using S3's native
-  lock-file support for state locking) and the account-wide API Gateway CloudWatch logging role.
-  Applied manually, once, before anything else.
-- `terraform/modules` - reusable modules (S3, DynamoDB, Lambda, API Gateway, IAM, monitoring,
-  GitHub OIDC).
-- `terraform/environments/{dev,prod}` - per-environment root configurations, each with its own
-  Terraform state.
-
-Before any `terraform plan`/`apply`, stage the Lambda deployment artifacts:
-
-```bash
-./scripts/build_lambda_packages.sh
-```
-
-Dev deploys automatically on merge to `main` via GitHub Actions (OIDC, no long-lived AWS
-credentials). Prod is always applied by hand. See [`docs/deploying.md`](docs/deploying.md) for
-the full CI/CD setup and the manual prod deploy steps.
+Full internals - the OIDC trust policy, one-time repo setup, the manual prod procedure - live in
+[docs/deploying.md](docs/deploying.md).
 
 ## Design decisions
 
-Architecture Decision Records live in [`docs/adr`](docs/adr):
+Architecture Decision Records live in [docs/adr](docs/adr):
 
 1. [Upload via S3 presigned POST](docs/adr/0001-upload-mechanism.md)
 2. [DynamoDB for storage](docs/adr/0002-database-choice.md)
