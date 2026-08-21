@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.9.0"
+  required_version = ">= 1.10.0" # use_lockfile in the S3 backend below needs 1.10+
 
   required_providers {
     aws = {
@@ -13,11 +13,11 @@ terraform {
   }
 
   backend "s3" {
-    bucket         = "csvuploader-tfstate-399855128537"
-    key            = "prod/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "csvuploader-tfstate-lock"
-    encrypt        = true
+    bucket       = "csvuploader-tfstate-399855128537"
+    key          = "prod/terraform.tfstate"
+    region       = "us-east-1"
+    use_lockfile = true
+    encrypt      = true
   }
 }
 
