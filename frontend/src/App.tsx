@@ -4,8 +4,10 @@ import { Dashboard } from "./pages/Dashboard";
 
 export default function App() {
   return (
-    <Authenticator>
-      {({ signOut }) => <Dashboard signOut={signOut} />}
-    </Authenticator>
+    <div className="min-h-screen bg-slate-50">
+      <Authenticator>
+        {({ signOut }) => <Dashboard signOut={signOut} />}
+      </Authenticator>
+    </div>
   );
 }
