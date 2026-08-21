@@ -346,19 +346,13 @@ data "aws_iam_policy_document" "github_actions_deploy_permissions" {
     actions = [
       "s3:GetObject",
       "s3:PutObject",
+      "s3:DeleteObject", # release of the S3-native lock file (*.tflock) deletes it
       "s3:ListBucket",
     ]
     resources = [
       "arn:aws:s3:::csvuploader-tfstate-${data.aws_caller_identity.current.account_id}",
       "arn:aws:s3:::csvuploader-tfstate-${data.aws_caller_identity.current.account_id}/dev/*",
     ]
-  }
-
-  statement {
-    sid       = "TerraformStateLock"
-    effect    = "Allow"
-    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]
-    resources = ["arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/csvuploader-tfstate-lock"]
   }
 
   statement {
