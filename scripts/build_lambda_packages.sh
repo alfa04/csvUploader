@@ -37,4 +37,7 @@ for fn in "${FUNCTIONS[@]}"; do
   find "$dest" -name "__pycache__" -type d -exec rm -rf {} +
 done
 
+echo "==> Recording the commit being built, for tagging deployed resources with it"
+git -C "$REPO_ROOT" rev-parse HEAD > "$BUILD_DIR/git_sha.txt"
+
 echo "==> Done. Staged: $BUILD_DIR/layer/python, ${FUNCTIONS[*]/#/$BUILD_DIR/functions/}"

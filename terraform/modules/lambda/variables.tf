@@ -58,3 +58,8 @@ variable "dlq_target_arn" {
   type        = string
   default     = null
 }
+
+variable "git_commit_sha" {
+  description = "Full git commit SHA of the code being deployed, applied as a tag so the deployed function is self-describing (check the AWS console/CLI directly, no need to cross-reference git history)."
+  type        = string
+}

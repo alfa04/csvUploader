@@ -28,6 +28,10 @@ resource "aws_lambda_function" "this" {
     mode = "Active"
   }
 
+  tags = {
+    GitCommit = var.git_commit_sha
+  }
+
   depends_on = [aws_cloudwatch_log_group.this]
 }
 
