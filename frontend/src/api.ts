@@ -2,6 +2,12 @@ import { fetchAuthSession } from "aws-amplify/auth";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
+export interface RowError {
+  row: number;
+  field: string;
+  message: string;
+}
+
 export interface UploadSummary {
   upload_id: string;
   status: "pending" | "processing" | "succeeded" | "partially_succeeded" | "failed";
@@ -11,6 +17,7 @@ export interface UploadSummary {
   row_count: number;
   valid_row_count: number;
   invalid_row_count: number;
+  errors: RowError[];
 }
 
 export interface PresignedUpload {
@@ -18,6 +25,20 @@ export interface PresignedUpload {
   upload_url: string;
   upload_fields: Record<string, string>;
   expires_in: number;
+}
+
+export interface DataRecord {
+  row_number: number;
+  drug_name: string;
+  target: string;
+  efficacy: number;
+}
+
+export interface RecordsPage {
+  upload_id: string;
+  status: string;
+  records: DataRecord[];
+  next_token?: string;
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -49,6 +70,10 @@ export async function startUpload(filename: string): Promise<PresignedUpload> {
 
 export async function getUploadStatus(uploadId: string): Promise<UploadSummary> {
   return apiFetch<UploadSummary>(`/uploads/${uploadId}`);
+}
+
+export async function getUploadRecords(uploadId: string): Promise<RecordsPage> {
+  return apiFetch<RecordsPage>(`/uploads/${uploadId}/records?limit=200`);
 }
 
 export async function uploadFileToS3(presigned: PresignedUpload, file: File): Promise<void> {

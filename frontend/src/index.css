@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+/* Retheme Amplify's Authenticator to our indigo accent instead of its default purple - these
+   custom properties must come after @aws-amplify/ui-react/styles.css in final bundle order to
+   win the cascade (enforced by importing this file last in main.tsx). */
+:root {
+  --amplify-colors-brand-primary-10: #eef2ff;
+  --amplify-colors-brand-primary-20: #e0e7ff;
+  --amplify-colors-brand-primary-40: #a5b4fc;
+  --amplify-colors-brand-primary-60: #6366f1;
+  --amplify-colors-brand-primary-80: #4338ca;
+  --amplify-colors-brand-primary-90: #3730a3;
+  --amplify-colors-brand-primary-100: #312e81;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900;
+}
